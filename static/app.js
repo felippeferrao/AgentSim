@@ -1131,7 +1131,6 @@ async function realRun(body) {
     else if (page === "Watch & run") home();
   }
 }
-$("#connect").onclick = connection;
 $("#connection").onclick = connection;
 $("#help").onclick = () =>
   modal(

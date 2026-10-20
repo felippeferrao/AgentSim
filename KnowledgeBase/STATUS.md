@@ -69,3 +69,9 @@ Moved the existing Welcome to AgentSim card above the navigation menu, removed i
 Reloaded and visually verified the user's existing in-app tab: Welcome is first, the menu appears directly below, and both distinct card illustrations load. Screenshot: design/dashboard-sidebar-top.png. No agent/team/account data was changed. JavaScript syntax and diff whitespace checks pass.
 
 Sidebar/card revision regression check: all 30 tests passed in 8.201 seconds.
+
+## Welcome card copy cleanup
+
+Removed the three onboarding steps, the sidebar Connection setup button and the local-data/AI-connection note exactly as requested. The sidebar welcome card retains its approved robot and title, with navigation underneath. Removed the deleted button's JavaScript binding to prevent initialization errors. Account settings remain available in the header.
+
+Verified in the existing user tab after reload: removed copy/button absent, robot/title present, navigation and Architecture still render. JavaScript syntax and diff whitespace checks pass.
