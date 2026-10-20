@@ -1263,3 +1263,101 @@ pre {
 .orchestration-panel .delegation-route {
   padding: 0 4px 16px;
 }
+
+/* Dashboard illustrations: original characters plus matching resource artwork. */
+.dashboard-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.dashboard-art {
+  height: 145px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  position: relative;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.dashboard-art > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dashboard-art-agents {
+  background: linear-gradient(135deg, #eaf8f3, #f7fcfa);
+}
+.dashboard-art-agents .portrait {
+  display: block;
+  flex: none;
+  transform: scale(1.12);
+}
+.dashboard-art-team {
+  background: linear-gradient(135deg, #fff2e2, #f7f1ff);
+}
+.dashboard-art-team .portrait {
+  position: absolute;
+  display: block;
+  flex: none;
+  transform: scale(0.68);
+  transform-origin: center;
+  top: 20px;
+}
+.dashboard-art-team .portrait:nth-child(1) {
+  left: calc(50% - 175px);
+}
+.dashboard-art-team .portrait:nth-child(2) {
+  left: calc(50% - 85px);
+  top: 3px;
+  z-index: 1;
+}
+.dashboard-art-team .portrait:nth-child(3) {
+  left: calc(50% + 5px);
+}
+.dashboard-art-watch {
+  background: linear-gradient(135deg, #eef4ff, #f4efff);
+}
+.dashboard-art-watch .robot {
+  display: block;
+  flex: none;
+  max-width: none;
+}
+.dashboard-play {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ff812c;
+  color: white;
+  box-shadow: 0 4px 14px #ff812c30;
+  font-size: 18px;
+  padding-left: 2px;
+}
+.dashboard-card .dashboard-count {
+  position: absolute;
+  top: 31px;
+  left: 31px;
+  z-index: 2;
+  margin: 0;
+  box-shadow: 0 2px 8px #1526530a;
+}
+.dashboard-card > h2 {
+  margin-bottom: 6px;
+}
+.dashboard-card > p {
+  margin: 4px 0 14px;
+  flex: 1;
+}
+.dashboard-card > span:last-child {
+  font-weight: 650;
+}

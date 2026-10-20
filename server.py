@@ -381,17 +381,21 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(read())
         if self.path == "/api/connection":
             return self.reply(auth.connection_status())
-        path = ROOT / "static" / ("index.html" if self.path == "/" else self.path.lstrip("/"))
+        path = ROOT / "static" / ("index.html" if url.path == "/" else url.path.lstrip("/"))
         if path.parent != ROOT / "static" or not path.is_file():
             return self.reply({"error": "Not found"}, 404)
         raw = path.read_bytes()
         self.send_response(200)
         self.send_header(
             "Content-Type",
-            {"html": "text/html", "css": "text/css", "js": "text/javascript"}.get(
-                path.suffix[1:], "text/plain"
-            ),
+            {
+                "html": "text/html",
+                "css": "text/css",
+                "js": "text/javascript",
+                "png": "image/png",
+            }.get(path.suffix[1:], "text/plain"),
         )
+        self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(raw)
 

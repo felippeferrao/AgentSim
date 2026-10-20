@@ -30,3 +30,5 @@ Latest profile navigation refinement: split the original step 1 into Identity (c
 - Watch & run must pulse the agent actually executing and show delegation, questions, context and replies live underneath. Unused agents must not appear completed.
 - Add an Architecture navigation item with application/runtime and selected-team diagrams.
 - Preserve the current visual identity and approved artwork. Remove only the small robot icon beside the WABIX logo in the header. Use agents, not helpers, in product labels.
+
+- Home navigation cards must include visible illustrations, not only text/counts. Keep the approved characters for Agents/Teams/Watch and matching resource artwork for Tools/Skills/MCP. Verify the result in the user's actual in-app tab.

@@ -103,15 +103,27 @@ function avatarClass(value) {
     }[value] || "portrait robot-agent"
   );
 }
+function dashboardArt(name) {
+  if (name === "Agents")
+    return '<span class="dashboard-art dashboard-art-agents" aria-hidden="true"><span class="portrait portrait-0"></span></span>';
+  if (name === "Teams")
+    return '<span class="dashboard-art dashboard-art-team" aria-hidden="true"><span class="portrait portrait-0"></span><span class="portrait portrait-1"></span><span class="portrait portrait-2"></span></span>';
+  if (name === "Watch & run")
+    return '<span class="dashboard-art dashboard-art-watch" aria-hidden="true"><span class="robot"></span><span class="dashboard-play">▶</span></span>';
+  const image = { Tools: "tools", Skills: "skills", "MCP Connections": "mcp" }[
+    name
+  ];
+  return `<span class="dashboard-art" aria-hidden="true"><img src="/card-${image}.png" alt="" width="1536" height="1024"></span>`;
+}
 function dashboard() {
   const exampleCount = state.agents.filter((a) => a.example).length;
   const cards = [
     ["Agents", "Give each agent one clear job.", state.agents.length],
     ["Teams", "Choose which agents work together.", state.teams.length],
-    ["Tools", "Small actions a agent may use.", state.catalog.tools.length],
+    ["Tools", "Small actions an agent may use.", state.catalog.tools.length],
     [
       "Skills",
-      "Instructions that help a agent do its job.",
+      "Instructions that help an agent do its job.",
       state.catalog.skills.length,
     ],
     [
@@ -126,7 +138,7 @@ function dashboard() {
     ],
   ];
   $("#main").innerHTML =
-    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Load example team"}</button><button id="goWatch">Watch & run →</button><button id="educationalDemo">Educational samples (optional)</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}"><span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>1. Create a agent or load examples. 2. Choose its job and permissions. 3. Pick a team in Watch & run. Demo shows samples. Real AI needs your own connection.</p><button id="dashboardConnect">Connection setup</button></section>`;
+    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Load example team"}</button><button id="goWatch">Watch & run →</button><button id="educationalDemo">Educational samples (optional)</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}">${dashboardArt(name)}<span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>1. Create an agent or load examples. 2. Choose its job and permissions. 3. Pick a team in Watch & run. Demo shows samples. Real AI needs your own connection.</p><button id="dashboardConnect">Connection setup</button></section>`;
   document.querySelectorAll("[data-open]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -421,7 +433,7 @@ function home() {
       )
       .join(
         "",
-      )}<small>Outputs and teaching explanations. No private internal thoughts.</small></section><section class="panel"><h2>Give your agent a job</h2><h3>${esc(current?.agent || members[0]?.agent || "Your agent")}</h3><p class="muted">${esc(state.agents.find((a) => a.id === (current?.agentId || members[0]?.agentId))?.job || "Choose a agent to begin.")}</p><p class="muted">Model: ${esc(current?.model || state.agents.find((a) => a.id === (current?.agentId || members[0]?.agentId))?.model?.name || "Choose in Profile")}</p><button id="editAgents">Edit job & permissions</button><p>${current ? `Tools: ${esc(current.assignments?.tools?.join(", ") || "None")}<br>Skills: ${esc(current.assignments?.skills?.join(", ") || "None")}<br>MCP: ${esc(current.assignments?.mcp?.join(", ") || "None")}` : "Choose tools, skills and MCP tools in Agents."}</p>${executionMode === "demo" ? `<button class="purple" id="next" ${!run || busy || step >= run.steps.length ? "disabled" : ""}>Next step →</button>` : '<p class="muted">Real AI runs automatically. Watch completed steps appear here.</p>'}<button id="compare" style="width:100%;margin-top:12px">◫ Compare runs</button></section></div></div>`;
+      )}<small>Outputs and teaching explanations. No private internal thoughts.</small></section><section class="panel"><h2>Give your agent a job</h2><h3>${esc(current?.agent || members[0]?.agent || "Your agent")}</h3><p class="muted">${esc(state.agents.find((a) => a.id === (current?.agentId || members[0]?.agentId))?.job || "Choose an agent to begin.")}</p><p class="muted">Model: ${esc(current?.model || state.agents.find((a) => a.id === (current?.agentId || members[0]?.agentId))?.model?.name || "Choose in Profile")}</p><button id="editAgents">Edit job & permissions</button><p>${current ? `Tools: ${esc(current.assignments?.tools?.join(", ") || "None")}<br>Skills: ${esc(current.assignments?.skills?.join(", ") || "None")}<br>MCP: ${esc(current.assignments?.mcp?.join(", ") || "None")}` : "Choose tools, skills and MCP tools in Agents."}</p>${executionMode === "demo" ? `<button class="purple" id="next" ${!run || busy || step >= run.steps.length ? "disabled" : ""}>Next step →</button>` : '<p class="muted">Real AI runs automatically. Watch completed steps appear here.</p>'}<button id="compare" style="width:100%;margin-top:12px">◫ Compare runs</button></section></div></div>`;
   $("#executionMode").value = executionMode;
   $("#executionMode").onchange = () => {
     executionMode = $("#executionMode").value;
