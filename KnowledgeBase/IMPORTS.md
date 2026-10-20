@@ -1,3 +1,11 @@
+# Current import entry points
+
+Skills use Codex SKILL.md Markdown with YAML name/description and a body. Upload, View and Remove are available in Skills; see [harness and skill lifecycle](HARNESS_INTEGRATIONS.md). The older JSON skill HTTP route remains for configuration compatibility, not as the primary import UI.
+
+MCP Connections accepts a plugin ZIP with .mcp.json/mcp.json plus an optional locally entered access key. Remote HTTP and explicitly trusted packaged Python/Node stdio entry points are supported; tools are discovered automatically and remain ungranted until assigned. See [plugin format, limits and example](HARNESS_INTEGRATIONS.md#mcp-plugin-zip).
+
+The following describes whole-workspace configuration imports/exports and legacy declarative records.
+
 # Declarative import format
 
 ## Setup JSON

@@ -21,7 +21,9 @@ from pydantic import ConfigDict, Field, create_model
 
 import auth
 import external_mcp
+import harness
 import profiles
+from skill_runtime import SkillSelector, available_skills
 
 ROOT = Path(__file__).parent
 
@@ -78,6 +80,8 @@ class HTTPMCPTool(BaseTool):
                 "step": self.step_index(),
                 "name": label,
                 "input": "External MCP arguments kept out of the timeline.",
+                "implementation": "runtime.HTTPMCPTool",
+                "where": "MCP connection: " + self.connection_id,
             },
         )
         try:
@@ -129,7 +133,16 @@ def http_tools(agent, catalog, emit, llm):
                     remote_name=definition["id"],
                     grants=list(agent["mcp"]),
                     expected_tool=definition,
-                    event_sink=emit,
+                    event_sink=lambda kind, data, actor=agent, target=connection["id"]: emit(
+                        kind,
+                        {
+                            "agentId": actor.get("id"),
+                            "agent": actor.get("name", "MCP agent"),
+                            "implementation": "runtime.HTTPMCPTool",
+                            "where": "MCP connection: " + target,
+                            **data,
+                        },
+                    ),
                     step_index=lambda: llm.current,
                 )
             )
@@ -180,9 +193,13 @@ class ResponsesLLM(BaseLLM):
                     "agentId": self.config["agentId"],
                     "agent": self.config.get("agentName"),
                     "model": self.model,
+                    "where": "Provider: "
+                    + __import__("urllib.parse", fromlist=["urlsplit"]).urlsplit(base).netloc,
+                    "implementation": "runtime.ResponsesLLM",
                 },
             )
         final = None
+        completed_items = {}
         options = {}
         if self.config.get("temperature") is not None:
             options["temperature"] = self.config["temperature"]
@@ -193,7 +210,9 @@ class ResponsesLLM(BaseLLM):
                 model=self.model, input=inputs, store=False, stream=True, **options
             ) as stream:
                 for event in stream:
-                    if event.type == "response.completed":
+                    if event.type == "response.output_item.done":
+                        completed_items[event.output_index] = event.item
+                    elif event.type == "response.completed":
                         final = event.response
                     elif event.type in ("response.failed", "response.incomplete", "error"):
                         raise ValueError(
@@ -205,6 +224,10 @@ class ResponsesLLM(BaseLLM):
             ) from None
         if final is None:
             raise ValueError("The provider stream ended early. No complete result was received.")
+        if not final.output and completed_items:
+            final = final.model_copy(
+                update={"output": [completed_items[i] for i in sorted(completed_items)]}
+            )
         usage = final.usage
         record = {
             "step": self.current,
@@ -221,11 +244,30 @@ def builtin_tools(a, emit, llm, catalog):
 
     def tracked(name, fn, llm=llm):
         def wrapper(**args):
-            emit("tool_started", {"step": llm.current, "name": name, "input": args})
-            result = fn(**args)
+            metadata = {
+                "agentId": a["id"],
+                "agent": a["name"],
+                "implementation": "runtime.builtin_tools",
+                "where": "Local Python"
+                if name == "calculator"
+                else "Local MCP stdio · teaching documents",
+            }
+            emit("tool_started", {**metadata, "step": llm.current, "name": name, "input": args})
+            try:
+                result = fn(**args)
+            except Exception:
+                emit(
+                    "tool_failed",
+                    {
+                        **metadata,
+                        "name": name,
+                        "error": "Assigned tool could not complete this request.",
+                    },
+                )
+                raise
             emit(
                 "tool_completed",
-                {"step": llm.current, "name": name, "output": result},
+                {**metadata, "step": llm.current, "name": name, "output": result},
             )
             return result
 
@@ -261,6 +303,7 @@ def builtin_tools(a, emit, llm, catalog):
             )(document_id=document_id)
 
         assigned.append(documents_read)
+    assigned.extend(harness.integration_tools(a, llm, emit, llm.config.get("run_id", "standalone")))
     assigned.extend(http_tools(a, catalog, emit, llm))
     return assigned
 
@@ -287,7 +330,19 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
                 f"{a['name']}: skill {definition['name']} needs explicit permission for "
                 + ", ".join(sorted(missing))
             )
-        skill += " " + definition["instructions"]
+        skill += " " + definition["description"]
+    skill_catalog = state["catalog"]["skills"]
+    available = available_skills(skill_catalog, a, manager)
+    if available:
+        skill += (
+            "\nAvailable skills (call use_skill to load instructions when relevant):\n" + available
+        )
+    if not manager and a["skills"]:
+        assigned.append(
+            SkillSelector(
+                actor=a, catalog=skill_catalog, members=[a], selections={}, event_sink=emit
+            )
+        )
     agent = agent_class(
         role=a["role"],
         goal=a["goal"] + skill,
@@ -367,6 +422,8 @@ def execute(state, body, emit, config=None):
                         "agentId": members[i + 1]["id"],
                         "agent": members[i + 1]["name"],
                         "task": tasks[i + 1].description,
+                        "implementation": "runtime.execute",
+                        "where": "Local CrewAI sequential task",
                     },
                 )
 

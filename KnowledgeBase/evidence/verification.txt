@@ -53,3 +53,16 @@ Manager-led teams verification (2026-10-20)
 - Controlled HTTP Responses endpoint + actual app SSE: delegation observed before completion, worker reply and final manager result persisted, per-agent model choices and usage preserved.
 - Browser on isolated port 8081: active Writer card, waiting Reviewer manager, idle Researcher, live delegation and returned messages; zero active cards after completion.
 - Production app configuration browser checks: manager selection available, Architecture menu and diagram render, small header robot removed, account model combo remains automatic. No production team edits saved.
+
+Harness integration verification (2026-10-20, latest)
+- Full unittest suite: 38 tests, 17.008 seconds, OK.
+- uv tool run ruff check ., node --check static/app.js, git diff --check: pass.
+- Actual PDF render and Plotly HTML/PNG3200x2000/SVG export; visual inspection passed.
+- Real local stdio MCP ZIP import/discovery/call with disposable credential; no auto grants.
+- Actual CrewAI scripted manager skill selection -> delegated worker context -> PDF/Plotly tools.
+- HTTP Responses/app SSE/persistent history/artifact retrieval, failure and restart interruption tests.
+- Browser fixture port8081: automatic 33-event execution, visible skill reason/class/location, real artifact gallery, persisted after reload, MD upload/view and ZIP auto discovery.
+- Actual ChatGPT account capability probe: hosted web_search completed with web_search_call + message. Hosted image_generation HTTP400 explicitly unsupported for subscription-sharing; separate configured image API adapter tested with controlled response, no live key supplied.
+- Streaming regression: collect response.output_item.done when terminal response.completed.output is empty; require completed terminal, never log raw private deltas.
+- Restarted actual8080 and reloaded user tab; Tools5, image model configuration, Skills View/Remove, plugin ZIP/key form and History visibly present. Existing profile data not edited.
+- screenshots: design/harness-tools.png (actual app); design/harness-history-fixture.png (controlled test app).

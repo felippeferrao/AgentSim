@@ -1,5 +1,21 @@
 # Delivery status — 2026-10-20, continued implementation
 
+## Latest: integration harness, skills, plugins and execution history
+
+Implemented the requested Web Research, PDF Generator, Image Generator adapter and Plotly Chart Generator alongside Calculator. Generated files appear in Watch & run and persistent Execution history, with preview/open/download links. Plotly creates self-contained interactive HTML, 3200x2000 PNG and SVG; PDF uses ReportLab. The image adapter has its own dynamically loaded image-model configuration and protected API key, preserving agents' existing ChatGPT account.
+
+Skills accept Codex-style SKILL.md with YAML name/description and Markdown instructions. View and Remove are available. The manager sees registered skill descriptions and can choose a relevant skill for itself or a team member. Actual skill selection, public reason and application are separate visible events; skills never grant tool permissions.
+
+MCP Connections accepts plugin ZIP and access key, inspects `.mcp.json`/`mcp.json`, shows destinations and packaged entry-point source, imports packaged skills and automatically discovers tools. Supported transports are Streamable HTTP and explicitly trusted packaged Python/Node stdio entry points. This is a documented manifest contract, not an arbitrary installer. ZIP traversal/symlinks/embedded manifest credentials are rejected; imported tools start ungranted. A working example ZIP is downloadable from the form.
+
+Every public execution event is numbered and persisted with timestamp, actor, model where applicable, explanation, execution location and implementation class/function. History includes completed, failed, rejected and interrupted runs; restart preserves evidence and marks running jobs interrupted, without resuming. No hidden model thoughts or credentials are exposed. [Class mapping, extension contract and plugin/skill schemas](HARNESS_INTEGRATIONS.md).
+
+Verification: **38 tests passed in 17.008 seconds**. The suite includes actual ReportLab/Plotly output, real authenticated stdio plugin discovery/call, actual CrewAI manager skill choice and worker instruction application, HTTP Responses → app SSE → persistent history/artifact retrieval, failure/interruption records and empty-terminal streaming regression. Ruff, JavaScript syntax and diff whitespace checks passed. PDF and chart exports were visually inspected. An isolated app on port 8081 verified automatic execution, 33 public events, skill choice, PDF/chart gallery, reload persistence, Markdown upload/view and ZIP import/discovery using disposable fixture credentials. These controlled LLM responses are test evidence, not external inference.
+
+Live provider verification: AgentSim's own authorized ChatGPT account completed Web Research with an actual `web_search_call` and message. Hosted `image_generation` was explicitly rejected by the subscription-sharing service. **Image generation requires the owner to configure an image API key in Tools → Image Generator → Configure image model.** The separate adapter is implemented and tested; no live image API key was supplied. No credentials were borrowed from another application. Both Responses adapters now support completed output items emitted before an empty terminal output list while still requiring terminal completion.
+
+The real server on port 8080 was restarted and the user's existing in-app tab reloaded. Tools shows all five entries; image setup, SKILL.md view/remove, plugin ZIP/key form and Execution history are visible. Existing agent/team configuration was preserved. Proof: `design/harness-tools.png`; controlled execution proof: `design/harness-history-fixture.png`. No public deployment. Earlier sections below are historical and their test counts/external-inference limitations are superseded by this section.
+
 ## Implemented and verified
 
 - **Home is a dashboard**, with Agents, Teams, Tools, Skills, MCP Connections and Watch & run cards, counts, a short explanation and next steps. The approved team visualization now lives in Watch & run. Existing layout, art, mascot, WABIX logo and palette are preserved.

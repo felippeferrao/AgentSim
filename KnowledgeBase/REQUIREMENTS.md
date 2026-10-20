@@ -35,3 +35,9 @@ Latest profile navigation refinement: split the original step 1 into Identity (c
 
 - The Welcome to AgentSim card belongs at the top of the desktop sidebar, with the complete navigation menu below it.
 - Agents and Teams dashboard images must be distinct purpose-made illustrations, not reused execution portraits.
+
+- Add real Web Research, PDF, LLM image-generation and high-quality Plotly chart integrations to Tools. Show generated outputs/previews/downloads during execution.
+- Import/view/remove Codex-format Markdown skills. Managers choose relevant skills, explain the public choice and apply them to delegated work; record selection/application explicitly.
+- Persist every run and public execution stage, including failed/interrupted runs, with explanatory evidence, execution location and responsible implementation class.
+- Interpret MCP plugin ZIP uploads plus locally entered access keys. Preview the manifest and executable entry points; discover tools automatically but retain explicit tool grants.
+- Document the harness contract, classes, future integration workflow, supported plugin formats and provider prerequisites in the project knowledge base.

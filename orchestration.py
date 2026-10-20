@@ -9,6 +9,7 @@ from pydantic import Field
 
 import profiles
 from runtime import build_agent
+from skill_runtime import SkillSelector, available_skills
 
 
 class InteractionTool:
@@ -69,6 +70,9 @@ class ObservedAgent(Agent):
     event_sink: Any = Field(exclude=True)
     results: Any = Field(exclude=True)
     is_manager: bool = False
+    skill_catalog: list = Field(default_factory=list, exclude=True)
+    team_profiles: list = Field(default_factory=list, exclude=True)
+    skill_selections: object = Field(default_factory=dict, exclude=True)
 
     def get_delegation_tools(self, agents):
         args = {"agents": list(agents), "owner": self.profile_data, "event_sink": self.event_sink}
@@ -82,10 +86,33 @@ class ObservedAgent(Agent):
             TrackedQuestion(
                 **args, description=I18N_DEFAULT.tools("ask_question").format(coworkers=coworkers)
             ),
+            SkillSelector(
+                actor=self.profile_data,
+                catalog=self.skill_catalog,
+                members=self.team_profiles,
+                selections=self.skill_selections,
+                event_sink=self.event_sink,
+                manager=True,
+            ),
         ]
 
     def execute_task(self, task, context=None, tools=None):
         a = self.profile_data
+        selected = self.skill_selections.get(a["id"], {})
+        for skill in selected.values():
+            task.description += "\nSelected skill " + skill["id"] + ":\n" + skill["instructions"]
+            self.event_sink(
+                "skill_applied",
+                {
+                    "agentId": a["id"],
+                    "agent": a["name"],
+                    "skillId": skill["id"],
+                    "skill": skill["name"],
+                    "implementation": "orchestration.ObservedAgent",
+                    "where": "Local agent task",
+                    "explanation": "Previously selected skill instructions were attached to this task.",
+                },
+            )
         start = len(self.llm.usage)
         self.event_sink(
             "agent_started",
@@ -146,6 +173,7 @@ def execute_managed(state, body, emit, config):
     if not goal or len(goal) > 500:
         raise ValueError("Add a goal (up to 500 characters).")
     results = []
+    skill_selections = {}
     workers = []
     manager = None
     for i, a in enumerate(members):
@@ -161,6 +189,9 @@ def execute_managed(state, body, emit, config):
             event_sink=emit,
             results=results,
             is_manager=is_manager,
+            skill_catalog=state["catalog"]["skills"],
+            team_profiles=members,
+            skill_selections=skill_selections,
         )
         llm.current = i
         # Distinct, readable routing names also support agents with the same specialty.
@@ -180,7 +211,10 @@ def execute_managed(state, body, emit, config):
             "You may revisit an agent, skip irrelevant agents or answer directly when appropriate. "
             "There is no fixed pipeline. Do not invent conversations or claim unperformed work. "
             "Give a final answer for the user's goal.\n"
-            f"Available agents:\n{roster}\nManager instructions: {manager_profile['instructions']}"
+            f"Available agents:\n{roster}\nManager instructions: {manager_profile['instructions']}\n"
+            f"Available registered skills (select with use_skill when relevant):\n{available_skills(state['catalog']['skills'], manager_profile, True)}\n"
+            + "Member routing ids: "
+            + ", ".join(a["id"] + "=" + a["name"] for a in members)
         ),
         expected_output=manager_profile["expectedOutput"],
     )

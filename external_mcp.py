@@ -3,15 +3,18 @@
 import asyncio
 import hashlib
 import json
+import os
 import re
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from urllib.parse import urlsplit
 
 import httpx
 import jsonschema
-from mcp import ClientSession
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
 
 import auth
@@ -24,9 +27,9 @@ def registry():
 
 
 def public(record):
-    return {k: v for k, v in record.items() if k != "credential"} | {
-        "hasCredential": bool(record.get("credential"))
-    }
+    return {
+        k: v for k, v in record.items() if k not in {"credential", "command", "script", "cwd"}
+    } | {"hasCredential": bool(record.get("credential"))}
 
 
 def connections():
@@ -165,6 +168,29 @@ def failure(exc):
     )
 
 
+@asynccontextmanager
+async def transport(record, headers):
+    if record.get("transport") == "stdio":
+        params = StdioServerParameters(
+            command=record["command"],
+            args=[record["script"]],
+            cwd=record["cwd"],
+            env={
+                "PATH": os.environ.get("PATH", ""),
+                **{name: record.get("credential", "") for name in record.get("envKeys", [])},
+                "PLUGIN_ACCESS_KEY": record.get("credential", ""),
+                "API_KEY": record.get("credential", ""),
+                "ACCESS_KEY": record.get("credential", ""),
+            },
+        )
+        async with stdio_client(params) as (reader, writer):
+            yield reader, writer, None
+    else:
+        async with httpx.AsyncClient(headers=headers, timeout=15, follow_redirects=False) as http:
+            async with streamable_http_client(record["url"], http_client=http) as streams:
+                yield streams
+
+
 async def exchange(record, tool_name=None, arguments=None):
     headers = {}
     if record["authType"] == "bearer":
@@ -174,77 +200,69 @@ async def exchange(record, tool_name=None, arguments=None):
 
     async def request():
         # No redirects: never forward an MCP credential to another destination.
-        async with httpx.AsyncClient(headers=headers, timeout=15, follow_redirects=False) as http:
-            async with streamable_http_client(record["url"], http_client=http) as (
-                reader,
-                writer,
-                _,
-            ):
-                async with ClientSession(
-                    reader, writer, read_timeout_seconds=timedelta(seconds=15)
-                ) as session:
-                    await session.initialize()
-                    if tool_name is None:
-                        tools = []
-                        cursor = None
-                        seen = set()
-                        for _ in range(20):
-                            page = await session.list_tools(cursor=cursor)
-                            for t in page.tools:
-                                if (
-                                    not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", t.name)
-                                    or t.name in seen
-                                ):
-                                    raise ValueError(
-                                        "The MCP server returned an invalid or duplicate tool name."
-                                    )
-                                seen.add(t.name)
-                                schema = t.inputSchema
-                                if not isinstance(schema, dict) or schema.get("type") != "object":
-                                    raise ValueError("MCP tools must use an object input schema.")
-
-                                def check_refs(value):
-                                    if isinstance(value, dict):
-                                        if "$ref" in value and (
-                                            not isinstance(value["$ref"], str)
-                                            or not value["$ref"].startswith("#")
-                                        ):
-                                            raise ValueError(
-                                                "Remote JSON Schema references are not supported. Use a self-contained schema."
-                                            )
-                                        for child in value.values():
-                                            check_refs(child)
-                                    elif isinstance(value, list):
-                                        for child in value:
-                                            check_refs(child)
-
-                                check_refs(schema)
-                                jsonschema.Draft202012Validator.check_schema(schema)
-                                tools.append(
-                                    {
-                                        "id": t.name,
-                                        "name": t.title or t.name,
-                                        "description": t.description or "External MCP tool.",
-                                        "inputSchema": schema,
-                                    }
-                                )
-                            if len(tools) > 100 or len(json.dumps(tools)) > 100000:
+        async with transport(record, headers) as (reader, writer, _):
+            async with ClientSession(
+                reader, writer, read_timeout_seconds=timedelta(seconds=15)
+            ) as session:
+                await session.initialize()
+                if tool_name is None:
+                    tools = []
+                    cursor = None
+                    seen = set()
+                    for _ in range(20):
+                        page = await session.list_tools(cursor=cursor)
+                        for t in page.tools:
+                            if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", t.name) or t.name in seen:
                                 raise ValueError(
-                                    "This server has too many tools or its schemas are too large (limit 100 tools / 100 KB)."
+                                    "The MCP server returned an invalid or duplicate tool name."
                                 )
-                            cursor = page.nextCursor
-                            if not cursor:
-                                return redact(tools, record)
-                        raise ValueError("MCP tool discovery exceeded the pagination limit.")
-                    result = await session.call_tool(tool_name, arguments or {})
-                    if result.isError:
-                        raise ValueError(
-                            "The MCP tool reported an error. Check its arguments and server permissions."
-                        )
-                    content = "\n".join(
-                        getattr(c, "text", "[Non-text MCP content]") for c in result.content
+                            seen.add(t.name)
+                            schema = t.inputSchema
+                            if not isinstance(schema, dict) or schema.get("type") != "object":
+                                raise ValueError("MCP tools must use an object input schema.")
+
+                            def check_refs(value):
+                                if isinstance(value, dict):
+                                    if "$ref" in value and (
+                                        not isinstance(value["$ref"], str)
+                                        or not value["$ref"].startswith("#")
+                                    ):
+                                        raise ValueError(
+                                            "Remote JSON Schema references are not supported. Use a self-contained schema."
+                                        )
+                                    for child in value.values():
+                                        check_refs(child)
+                                elif isinstance(value, list):
+                                    for child in value:
+                                        check_refs(child)
+
+                            check_refs(schema)
+                            jsonschema.Draft202012Validator.check_schema(schema)
+                            tools.append(
+                                {
+                                    "id": t.name,
+                                    "name": t.title or t.name,
+                                    "description": t.description or "External MCP tool.",
+                                    "inputSchema": schema,
+                                }
+                            )
+                        if len(tools) > 100 or len(json.dumps(tools)) > 100000:
+                            raise ValueError(
+                                "This server has too many tools or its schemas are too large (limit 100 tools / 100 KB)."
+                            )
+                        cursor = page.nextCursor
+                        if not cursor:
+                            return redact(tools, record)
+                    raise ValueError("MCP tool discovery exceeded the pagination limit.")
+                result = await session.call_tool(tool_name, arguments or {})
+                if result.isError:
+                    raise ValueError(
+                        "The MCP tool reported an error. Check its arguments and server permissions."
                     )
-                    return redact(content[:32000], record)
+                content = "\n".join(
+                    getattr(c, "text", "[Non-text MCP content]") for c in result.content
+                )
+                return redact(content[:32000], record)
 
     try:
         return await asyncio.wait_for(request(), timeout=20)

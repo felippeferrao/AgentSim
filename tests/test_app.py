@@ -208,6 +208,127 @@ class AppTests(unittest.TestCase):
         self.assertNotIn("Private fixture reasoning", json.dumps(run))
         self.assertEqual(server.read()["runs"][-1]["managerId"], "researcher")
 
+    def test_skill_to_artifacts_and_persisted_failed_history(self):
+        import io
+
+        from pypdf import PdfReader
+
+        markdown = "---\nname: checked-report\ndescription: Use for reports with checked numbers.\n---\nState that inputs are provided values, not independently verified data."
+        imported = self.post("skills/import", {"markdown": markdown})
+        self.assertEqual(imported.status_code, 200)
+        state = self.configured_state()
+        state["catalog"]["skills"] = imported.json()["catalog"]["skills"]
+        state["teams"][0]["manager"] = "researcher"
+        for agent in state["agents"]:
+            agent["tools"] = []
+            agent["skills"] = []
+            agent["mcp"] = []
+        state["agents"][1]["tools"] = ["pdf-generator", "chart-generator"]
+        state["agents"][1]["skills"] = ["checked-report"]
+        self.assertEqual(self.post("state", state).status_code, 200)
+        self.post(
+            "settings",
+            {
+                "provider": "api",
+                "api_key": "fixture-only-key",
+                "base_url": f"http://127.0.0.1:{self.provider.server_port}/v1",
+            },
+        )
+
+        def action(name, args):
+            return (
+                "Thought: Private fixture reasoning\nAction: "
+                + name
+                + "\nAction Input: "
+                + json.dumps(args)
+            )
+
+        self.scripts["model-alpha"] = [
+            action(
+                "use_skill",
+                {
+                    "skill_id": "checked-report",
+                    "reason": "The report needs a clear data caveat.",
+                    "agent_id": "writer",
+                },
+            ),
+            action(
+                "Delegate work to coworker",
+                {
+                    "coworker": "2. Writer — Writer",
+                    "task": "Create a report and chart from provided counts 4 and 7.",
+                    "context": "Controlled fixture",
+                },
+            ),
+            "Final Answer: The PDF and chart are attached.",
+        ]
+        self.scripts["model-beta"] = [
+            action(
+                "pdf_generator",
+                {
+                    "request": "Provided values: Alpha 4; Beta 7. These are supplied inputs.",
+                    "title": "Checked report",
+                },
+            ),
+            action(
+                "chart_generator",
+                {
+                    "request": json.dumps(
+                        {"data": [{"type": "bar", "x": ["Alpha", "Beta"], "y": [4, 7]}]}
+                    ),
+                    "title": "Provided counts",
+                },
+            ),
+            "Final Answer: Created the report and chart.",
+        ]
+        ident = self.post(
+            "real-run",
+            {
+                "goal": "Create a checked PDF report and a chart.",
+                "team": "research",
+                "mode": "team",
+            },
+        ).json()["id"]
+        snapshots = []
+        with httpx.stream("GET", self.base + "jobs/" + ident + "/events", timeout=40) as stream:
+            for line in stream.iter_lines():
+                if line.startswith("data: "):
+                    snapshots.append(json.loads(line[6:]))
+        job = snapshots[-1]
+        self.assertEqual(job["status"], "completed", job.get("error"))
+        self.assertIn("skill_selected", [e["type"] for e in job["events"]])
+        artifacts = [e["data"] for e in job["events"] if e["type"] == "artifact_created"]
+        self.assertEqual({a["extension"] for a in artifacts}, {"pdf", "png", "svg", "html"})
+        self.assertTrue(
+            all(e["data"].get("implementation") and e["data"].get("where") for e in job["events"])
+        )
+        pdf = next(a for a in artifacts if a["extension"] == "pdf")
+        raw = httpx.get(self.base.removesuffix("api/") + pdf["url"].lstrip("/"))
+        self.assertEqual(raw.headers["content-type"], "application/pdf")
+        self.assertIn("Provided values", PdfReader(io.BytesIO(raw.content)).pages[0].extract_text())
+        server.JOBS.clear()
+        self.assertEqual(httpx.get(self.base + "jobs/" + ident).json()["status"], "completed")
+        self.assertIn(ident, [j["id"] for j in httpx.get(self.base + "executions").json()])
+        self.assertNotIn("Private fixture reasoning", json.dumps(job))
+        removed = self.post("skills/remove", {"id": "checked-report"}).json()
+        self.assertNotIn("checked-report", removed["agents"][1]["skills"])
+        with patch("runtime.execute", side_effect=ValueError("Controlled provider failure")):
+            failed_id = self.post(
+                "real-run", {"goal": "Fail in a controlled way", "team": "research", "mode": "team"}
+            ).json()["id"]
+            for _ in range(50):
+                failed = httpx.get(self.base + "jobs/" + failed_id).json()
+                if failed["status"] == "failed":
+                    break
+                time.sleep(0.05)
+        self.assertEqual(failed["status"], "failed")
+        server.JOBS.clear()
+        self.assertEqual(httpx.get(self.base + "jobs/" + failed_id).json()["status"], "failed")
+        self.assertIn(
+            "Controlled provider failure",
+            httpx.get(self.base + "jobs/" + failed_id).json()["error"],
+        )
+
     def test_explicit_examples_and_import_export_shape(self):
         self.assertEqual(httpx.get(self.base + "state").json()["agents"], [])
         response = self.post("examples", {})

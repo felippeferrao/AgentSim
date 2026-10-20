@@ -59,7 +59,10 @@ cffi==2.1.1 ; platform_python_implementation != 'PyPy'
 charset-normalizer==3.5.2
     # via
     #   pdfminer-six
+    #   reportlab
     #   requests
+choreographer==1.4.0
+    # via kaleido
 chromadb==1.5.9
     # via crewai
 click==8.5.0
@@ -194,6 +197,8 @@ jsonschema==4.26.0
     #   mcp
 jsonschema-specifications==2025.9.1
     # via jsonschema
+kaleido==1.5.0
+    # via -r requirements.txt
 kubernetes==36.0.3
     # via chromadb
 lance-namespace==0.13.0
@@ -208,6 +213,10 @@ linkify-it-py==2.2.0
     # via markdown-it-py
 litellm==1.106.0
     # via crewai
+logistro==2.0.1
+    # via
+    #   choreographer
+    #   kaleido
 markdown-it-py==4.2.0
     # via
     #   mdit-py-plugins
@@ -229,6 +238,8 @@ multidict==7.1.0
     # via
     #   aiohttp
     #   yarl
+narwhals==2.27.1
+    # via plotly
 numpy==2.5.4
     # via
     #   chromadb
@@ -299,9 +310,11 @@ packaging==26.3
     #   crewai-core
     #   deprecation
     #   huggingface-hub
+    #   kaleido
     #   lancedb
     #   litellm
     #   onnxruntime
+    #   plotly
 pdfminer-six==20260107
     # via pdfplumber
 pdfplumber==0.11.10
@@ -309,9 +322,15 @@ pdfplumber==0.11.10
 pendulum==3.3.0
     # via cel-python
 pillow==13.0.0
-    # via pdfplumber
+    # via
+    #   pdfplumber
+    #   reportlab
 platformdirs==4.13.5
-    # via textual
+    # via
+    #   choreographer
+    #   textual
+plotly==6.9.0
+    # via -r requirements.txt
 portalocker==2.7.0
     # via
     #   crewai
@@ -366,6 +385,8 @@ pyjwt==2.15.1
     #   crewai-cli
     #   crewai-core
     #   mcp
+pypdf==6.21.1
+    # via -r requirements.txt
 pypdfium2==5.14.0
     # via pdfplumber
 pypika==0.51.1
@@ -393,6 +414,7 @@ pywin32==312 ; sys_platform == 'win32'
     #   portalocker
 pyyaml==6.0.3
     # via
+    #   -r requirements.txt
     #   cel-python
     #   chromadb
     #   crewai
@@ -408,6 +430,8 @@ regex==2026.1.15
     # via
     #   crewai
     #   tiktoken
+reportlab==4.5.1
+    # via -r requirements.txt
 requests==2.34.2
     # via
     #   instructor
@@ -434,6 +458,8 @@ s3transfer==0.19.3
     # via boto3
 shellingham==1.5.4
     # via typer
+simplejson==4.2.0
+    # via choreographer
 six==1.17.0
     # via
     #   kubernetes

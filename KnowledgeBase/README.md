@@ -11,3 +11,5 @@ This folder is the source of project requirements and delivery truth. It is not 
 - [Expanded agent profiles and framework mapping](AGENT_PROFILES.md)
 - [External HTTP MCP connections](EXTERNAL_MCP.md)
 - [OAuth configuration review and human verification](OAUTH_REVIEW.md)
+
+- [Harness integrations, skills, plugins and execution evidence](HARNESS_INTEGRATIONS.md)

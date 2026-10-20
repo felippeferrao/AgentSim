@@ -1,3 +1,5 @@
+> Update: this page describes the HTTP transport and permission model. Plugin ZIP uploads now also support explicitly trusted local stdio MCP servers and separate access keys; see [harness integration guide](HARNESS_INTEGRATIONS.md).
+
 # External MCP connections
 
 MCP Connections → Add HTTP connection → Save → Discover tools → Agents → MCPs → explicitly select individual tools.

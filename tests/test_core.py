@@ -201,6 +201,8 @@ class CoreTests(unittest.TestCase):
                 return 'Thought: I should use the assigned calculator.\nAction: calculator\nAction Input: {"expression":"2+3"}'
             if len(calls) == 2:
                 return 'Thought: Find picnic facts.\nAction: documents_search\nAction Input: {"query":"picnic"}'
+            if len(calls) == 3:
+                return 'Thought: Use the writing skill.\nAction: use_skill\nAction Input: {"skill_id":"clear-writing","reason":"Keep the picnic instructions easy to follow.","agent_id":""}'
             if llm.current == 0:
                 self.assertIn("short sentences", str(messages))
             return "Final Answer: Bring five sandwiches and water."

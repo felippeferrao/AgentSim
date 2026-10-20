@@ -83,3 +83,17 @@ Tests include actual CrewAI execution with a scripted LLM, authenticated HTTP MC
 The current app supports one ChatGPT registration and one API credential connection, configured in Connection setup. Each agent keeps its own model; legacy profiles retain connection metadata for compatibility. Legacy HTTP+SSE MCP, remote MCP OAuth, arbitrary tool plugins, encrypted credential vault, durable background-job recovery, cancellation and public multi-user hosting remain future work. Completed runs persist; a server restart interrupts in-flight jobs.
 
 See [KnowledgeBase](KnowledgeBase/README.md) for requirements, architecture, evidence and exact delivery status.
+
+## Tools, skills, plugins and execution history
+
+Tools now includes Web Research, PDF Generator, Image Generator and Plotly Chart Generator, in addition to Calculator. Assign individual tools to agents, then the LLM calls them automatically when needed. Generated PDFs, images and interactive/high-resolution charts appear as previews/downloads in Watch & run and Execution history. Plotly static export uses Kaleido and an installed Chrome/Chromium.
+
+Skills imports Codex-format SKILL.md files and supports View/Remove. Managers can choose registered skills with an explicit public reason and apply them to delegated work. New tool grants are never inferred from skill instructions.
+
+MCP Connections can import a plugin ZIP plus an access key, inspect .mcp.json/mcp.json, register HTTP or trusted Python/Node stdio servers and discover tools. A downloadable example package is included. Local code requires explicit trust; package installers are not run.
+
+Execution history persists running/completed/failed/interrupted/rejected work and every public event with sequence, time, location and implementation class. Historical artifacts remain available. A restart preserves evidence and marks unfinished work interrupted; it does not resume execution.
+
+**ChatGPT-plan limitation confirmed:** hosted web search was verified live, while hosted image_generation is rejected by the subscription-sharing API. Tools → Image Generator → Configure image model accepts a dedicated image API key/model without changing the agents' ChatGPT connection. This optional account is stored independently and may be disconnected from the same form. No image API key has been supplied in this workspace, so live image generation remains unverified until configured.
+
+[Harness extension contract, class map, Codex skill format, plugin schemas and examples](KnowledgeBase/HARNESS_INTEGRATIONS.md).

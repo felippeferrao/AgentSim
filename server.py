@@ -12,20 +12,18 @@ from urllib.parse import parse_qs, urlparse
 
 import auth
 import external_mcp
+import harness
+import plugin_import
 import profiles
+import skill_files
+from execution_log import enrich
 
 LOCK = threading.RLock()
 JOBS = {}
 ROOT = Path(__file__).parent
 DB = Path(os.environ.get("AGENTSIM_DB", str(ROOT / "agentsim.db")))
 CATALOG = {
-    "tools": [
-        {
-            "id": "calculator",
-            "name": "Calculator",
-            "description": "Calculate numbers with + - * /.",
-        }
-    ],
+    "tools": harness.CATALOG,
     "skills": [
         {
             "id": "clear-writing",
@@ -51,7 +49,77 @@ CATALOG = {
 def connect():
     db = sqlite3.connect(DB)
     db.execute("CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, data TEXT)")
+    db.execute("CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY, data TEXT)")
     return db
+
+
+def save_job(job):
+    with connect() as db:
+        db.execute("INSERT OR REPLACE INTO executions VALUES (?,?)", (job["id"], json.dumps(job)))
+
+
+def saved_job(ident):
+    with connect() as db:
+        row = db.execute("SELECT data FROM executions WHERE id=?", (ident,)).fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def execution_history():
+    with connect() as db:
+        jobs = [
+            json.loads(row[0])
+            for row in db.execute("SELECT data FROM executions ORDER BY rowid DESC")
+        ]
+    known = {j["id"] for j in jobs}
+    jobs += [
+        {"id": r["id"], "status": "completed", "run": r, "events": r.get("events", [])}
+        for r in reversed(read()["runs"])
+        if r["id"] not in known
+    ]
+    return [
+        {
+            "id": j["id"],
+            "status": j["status"],
+            "goal": j.get("run", {}).get("goal", ""),
+            "team": j.get("run", {}).get("team", ""),
+            "startedAt": j.get("startedAt"),
+            "eventCount": len(j["events"]),
+            "error": j.get("error", ""),
+        }
+        for j in jobs
+    ]
+
+
+def recover_jobs():
+    with connect() as db:
+        rows = db.execute("SELECT data FROM executions").fetchall()
+    for row in rows:
+        job = json.loads(row[0])
+        if job["status"] == "running":
+            job["status"] = "interrupted"
+            job["error"] = (
+                "Application restarted during this run. Earlier activity and outputs were preserved."
+            )
+            job["events"].append(
+                {
+                    "type": "run_interrupted",
+                    "sequence": len(job["events"]) + 1,
+                    "time": time.time(),
+                    "data": enrich(
+                        "run_interrupted",
+                        {
+                            "error": job["error"],
+                            "implementation": "server.recover_jobs",
+                            "where": "Local application startup",
+                            "explanation": "An unfinished run was recovered as interrupted after restart; no automatic replay was performed.",
+                        },
+                    ),
+                }
+            )
+            job["run"].update(
+                failed=True, error=job["error"], completed=False, events=job["events"]
+            )
+            save_job(job)
 
 
 def initial():
@@ -108,6 +176,7 @@ def read():
         row = db.execute("SELECT data FROM state WHERE id=1").fetchone()
     state = json.loads(row[0]) if row else blank()
     before_migration = __import__("copy").deepcopy(state)
+    state["catalog"]["tools"] = __import__("copy").deepcopy(CATALOG["tools"])
     # Migration labels the original bundled configurations; never resets user data.
     defaults = {a["id"]: a for a in initial()["agents"]}
     for a in state["agents"]:
@@ -212,7 +281,7 @@ def validate(s):
         raise ValueError("Use at most 30 skills.")
     skill_ids = []
     for skill in catalog["skills"]:
-        if not isinstance(skill, dict) or set(skill) != {
+        if not isinstance(skill, dict) or set(skill) - {"markdown", "format"} != {
             "id",
             "name",
             "description",
@@ -223,8 +292,8 @@ def validate(s):
         for key, limit in [
             ("id", 80),
             ("name", 80),
-            ("description", 500),
-            ("instructions", 4000),
+            ("description", 1024),
+            ("instructions", 100000),
         ]:
             if not isinstance(skill[key], str) or not 0 < len(skill[key]) <= limit:
                 raise ValueError("Invalid skill text.")
@@ -233,7 +302,7 @@ def validate(s):
         if not isinstance(skill["requires"], list) or any(
             not isinstance(x, str)
             or (
-                x != "calculator"
+                x not in [t["id"] for t in CATALOG["tools"]]
                 and not __import__("re").fullmatch(r"[a-z0-9-]+:[A-Za-z0-9_.-]{1,128}", x)
             )
             for x in skill["requires"]
@@ -244,7 +313,7 @@ def validate(s):
         raise ValueError("Duplicate skill ids.")
     for a in s["agents"]:
         for k, allowed in [
-            ("tools", ["calculator"]),
+            ("tools", [t["id"] for t in CATALOG["tools"]]),
             ("skills", skill_ids),
             ("mcp", [m["id"] + ":" + t["id"] for m in catalog["mcp"] for t in m["tools"]]),
         ]:
@@ -347,8 +416,50 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return
+        if url.path == "/api/image-provider":
+            return self.reply(harness.ImageProvider.settings())
+        if url.path == "/api/executions":
+            return self.reply(execution_history())
+        if url.path.startswith("/artifacts/"):
+            import re
+
+            match = re.fullmatch(
+                r"/artifacts/([A-Za-z0-9-]+)/([a-f0-9]{32}\.(pdf|png|svg|html))", url.path
+            )
+            if not match:
+                return self.reply({"error": "Artifact not found"}, 404)
+            path = harness.artifact_root() / match[1] / match[2]
+            if not path.is_file():
+                return self.reply({"error": "Artifact not found"}, 404)
+            raw = path.read_bytes()
+            self.send_response(200)
+            self.send_header(
+                "Content-Type",
+                {
+                    "pdf": "application/pdf",
+                    "png": "image/png",
+                    "svg": "image/svg+xml",
+                    "html": "text/html; charset=utf-8",
+                }[match[3]],
+            )
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cache-Control", "private, no-store")
+            self.send_header("Content-Disposition", 'inline; filename="' + match[2] + '"')
+            if match[3] == "html":
+                self.send_header(
+                    "Content-Security-Policy",
+                    "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'",
+                )
+            self.end_headers()
+            self.wfile.write(raw)
+            return
         if url.path.startswith("/api/jobs/") and url.path.endswith("/events"):
             ident = url.path.split("/")[-2]
+            if ident not in JOBS:
+                stored = saved_job(ident)
+                if stored:
+                    JOBS[ident] = stored
             if ident not in JOBS:
                 return self.reply({"error": "Run not found"}, 404)
             self.send_response(200)
@@ -371,7 +482,23 @@ class Handler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 return
         if url.path.startswith("/api/jobs/"):
-            job = JOBS.get(url.path.rsplit("/", 1)[-1])
+            ident = url.path.rsplit("/", 1)[-1]
+            job = JOBS.get(ident) or saved_job(ident)
+            if not job:
+                legacy = next((r for r in read()["runs"] if r["id"] == ident), None)
+                if legacy:
+                    job = {
+                        "id": ident,
+                        "status": "sample"
+                        if legacy.get("provider") == "demo"
+                        else "failed"
+                        if legacy.get("failed")
+                        else "completed"
+                        if legacy.get("completed")
+                        else "saved",
+                        "run": legacy,
+                        "events": legacy.get("events", []),
+                    }
             return self.reply(job or {"error": "Run not found"}, 200 if job else 404)
         if self.path == "/api/connection/status":
             return self.reply(auth.connection_status())
@@ -393,6 +520,7 @@ class Handler(BaseHTTPRequestHandler):
                 "css": "text/css",
                 "js": "text/javascript",
                 "png": "image/png",
+                "zip": "application/zip",
             }.get(path.suffix[1:], "text/plain"),
         )
         self.send_header("Cache-Control", "no-cache")
@@ -411,12 +539,82 @@ class Handler(BaseHTTPRequestHandler):
             ] != "http://" + self.headers.get("Host", ""):
                 return self.reply({"error": "Cross-origin writes blocked"}, 403)
             size = int(self.headers.get("Content-Length", "0"))
-            if size > 200000:
-                raise ValueError("File is too large. Limit: 200 KB.")
+            if size > (15_000_000 if self.path.startswith("/api/plugins/") else 8_000_000):
+                raise ValueError("Upload exceeds the permitted request size.")
             body = json.loads(self.rfile.read(size))
             if not isinstance(body, dict):
                 raise ValueError("Expected a JSON object.")
             s = read()
+            if self.path == "/api/image-provider/clear":
+                auth.store("image-provider", {})
+                return self.reply(harness.ImageProvider.settings())
+            if self.path in ("/api/image-provider/models", "/api/image-provider/save"):
+                old = auth.load("image-provider")
+                key = body.get("api_key") or old.get("api_key", "")
+                base = body.get("base_url", "https://api.openai.com/v1").rstrip("/")
+                if (
+                    not isinstance(key, str)
+                    or not key
+                    or len(key) > 8192
+                    or "\n" in key
+                    or "\r" in key
+                ):
+                    raise ValueError("Enter a valid image-provider API key locally.")
+                models = harness.ImageProvider.models(base, key)
+                if self.path.endswith("/models"):
+                    return self.reply({"models": models})
+                if body.get("model") not in [m["id"] for m in models]:
+                    raise ValueError("Choose an available GPT Image model.")
+                auth.store(
+                    "image-provider", {"api_key": key, "base_url": base, "model": body["model"]}
+                )
+                return self.reply(harness.ImageProvider.settings())
+            if self.path == "/api/plugins/inspect":
+                return self.reply(plugin_import.inspect(body.get("zip", "")))
+            if self.path == "/api/plugins/import":
+                preview = plugin_import.inspect(body.get("zip", ""))
+                candidate = __import__("copy").deepcopy(s)
+                for skill in preview["skills"]:
+                    if any(x["id"] == skill["id"] for x in candidate["catalog"]["skills"]):
+                        raise ValueError("A plugin skill id already exists: " + skill["id"])
+                    candidate["catalog"]["skills"].append(skill)
+                validate(candidate)
+                description, imported = plugin_import.install(
+                    body["zip"], body.get("accessKey", ""), body.get("trustLocal", False)
+                )
+                import asyncio
+
+                discovery = []
+                for connection in imported:
+                    try:
+                        asyncio.run(external_mcp.discover(connection["id"]))
+                        discovery.append({"id": connection["id"], "status": "Connected"})
+                    except ValueError as exc:
+                        discovery.append({"id": connection["id"], "status": str(exc)})
+                candidate["catalog"]["mcp"] = CATALOG["mcp"] + external_mcp.connections()
+                validate(candidate)
+                save(candidate)
+                return self.reply({"state": candidate, "discovery": discovery})
+            if self.path == "/api/skills/import":
+                skill = skill_files.parse_markdown(body.get("markdown", ""))
+                if any(x["id"] == skill["id"] for x in s["catalog"]["skills"]):
+                    raise ValueError(
+                        "A skill with this name already exists. Remove it before importing a replacement."
+                    )
+                s["catalog"]["skills"].append(skill)
+                validate(s)
+                save(s)
+                return self.reply(s)
+            if self.path == "/api/skills/remove":
+                ident = body.get("id")
+                if not any(x["id"] == ident for x in s["catalog"]["skills"]):
+                    raise ValueError("Skill not found.")
+                s["catalog"]["skills"] = [x for x in s["catalog"]["skills"] if x["id"] != ident]
+                for agent in s["agents"]:
+                    agent["skills"] = [x for x in agent["skills"] if x != ident]
+                validate(s)
+                save(s)
+                return self.reply(s)
             if self.path == "/api/examples":
                 with LOCK:
                     s = load_examples(read())
@@ -546,20 +744,57 @@ class Handler(BaseHTTPRequestHandler):
                             agent["name"]
                             + ": account access is not verified. Open Connection setup."
                         )
-                run_config = auth.settings()
+                run_config = dict(auth.settings())
                 job_id = str(uuid.uuid4())
+                run_config["run_id"] = job_id
+                seed = {
+                    "id": job_id,
+                    "goal": body["goal"],
+                    "team": selected_team["name"],
+                    "provider": "real",
+                    "steps": [],
+                    "events": [],
+                    "managerId": selected_team.get("manager")
+                    if body.get("mode") != "one"
+                    else None,
+                    "orchestration": "managed"
+                    if selected_team.get("manager") and body.get("mode") != "one"
+                    else "sequential",
+                    "roster": [
+                        {"agentId": a["id"], "agent": a["name"], "avatar": a["avatar"]}
+                        for a in selected_agents
+                    ],
+                    "completed": False,
+                }
                 JOBS[job_id] = {
                     "id": job_id,
                     "status": "running",
                     "events": [],
-                    "run": None,
+                    "run": seed,
+                    "startedAt": time.time(),
                 }
+
+                save_job(JOBS[job_id])
 
                 def work():
                     job = JOBS[job_id]
 
                     def emit(kind, data):
-                        job["events"].append({"type": kind, "data": data, "time": time.time()})
+                        job["events"].append(
+                            {
+                                "type": kind,
+                                "data": enrich(kind, data),
+                                "time": time.time(),
+                                "sequence": len(job["events"]) + 1,
+                            }
+                        )
+                        job["run"]["events"] = job["events"]
+                        job["run"]["steps"] = [
+                            e["data"]["result"]
+                            for e in job["events"]
+                            if e["type"] == "step_completed"
+                        ]
+                        save_job(job)
 
                     try:
                         from runtime import execute
@@ -586,6 +821,14 @@ class Handler(BaseHTTPRequestHandler):
                             "completed": True,
                             "events": job["events"],
                         }
+                        emit(
+                            "run_completed",
+                            {
+                                "implementation": "server.Handler.work",
+                                "where": "Local execution worker",
+                                "explanation": "The agent work completed; its results and event history are being saved.",
+                            },
+                        )
                         with LOCK:
                             latest = read()
                             latest["runs"] = (latest["runs"] + [run])[-200:]
@@ -599,6 +842,14 @@ class Handler(BaseHTTPRequestHandler):
                             if isinstance(exc, ValueError)
                             else "Real run failed. Check provider access, model support and your settings. No demo result was substituted."
                         )
+                        emit("run_failed", {"error": job["error"]})
+                        job["run"].update(failed=True, error=job["error"], completed=False)
+                        with LOCK:
+                            latest = read()
+                            latest["runs"] = (latest["runs"] + [job["run"]])[-200:]
+                            save(latest)
+                    finally:
+                        save_job(job)
 
                 threading.Thread(target=work, daemon=True).start()
                 return self.reply({"id": job_id}, 202)
@@ -623,7 +874,44 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(run)
             return self.reply({"error": "Not found"}, 404)
         except (ValueError, KeyError, TypeError, StopIteration) as e:
-            self.reply({"error": str(e) or "Invalid data"}, 400)
+            message = str(e) or "Invalid data"
+            if self.path == "/api/real-run" and not locals().get("job_id"):
+                request_body = locals().get("body", {})
+                request_body = request_body if isinstance(request_body, dict) else {}
+                ident = str(uuid.uuid4())
+                event = {
+                    "type": "validation_failed",
+                    "data": enrich(
+                        "validation_failed",
+                        {
+                            "error": message,
+                            "implementation": "server.Handler.do_POST",
+                            "where": "Local API validation",
+                            "explanation": "Execution was rejected before any agent/model ran.",
+                        },
+                    ),
+                    "time": time.time(),
+                    "sequence": 1,
+                }
+                rejected = {
+                    "id": ident,
+                    "status": "rejected",
+                    "startedAt": time.time(),
+                    "events": [event],
+                    "error": message,
+                    "run": {
+                        "id": ident,
+                        "goal": str(request_body.get("goal", ""))[:500],
+                        "team": str(request_body.get("team", ""))[:80],
+                        "provider": "real",
+                        "steps": [],
+                        "events": [event],
+                        "failed": True,
+                        "completed": False,
+                    },
+                }
+                save_job(rejected)
+            self.reply({"error": message}, 400)
         except Exception:
             self.reply(
                 {"error": "The request failed. Check your connection settings and try again."},
@@ -632,6 +920,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    recover_jobs()
     port = int(os.environ.get("PORT", "8080"))
     print(f"WABIX AgentSim: http://127.0.0.1:{port} (real AI workspace)", flush=True)
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

@@ -48,6 +48,17 @@ class ResponsesContract(unittest.TestCase):
                         },
                     },
                 }
+                item = payload["response"]["output"][0]
+                self.wfile.write(
+                    (
+                        "data: "
+                        + json.dumps(
+                            {"type": "response.output_item.done", "output_index": 0, "item": item}
+                        )
+                        + "\n\n"
+                    ).encode()
+                )
+                payload["response"]["output"] = []
                 self.wfile.write(("data: " + json.dumps(payload) + "\n\n").encode())
 
             def log_message(self, *args):

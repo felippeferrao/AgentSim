@@ -57,7 +57,7 @@ async function persist() {
   }
 }
 function nav() {
-  const icons = ["⌂", "▷", "♙", "♟", "⚒", "ϟ", "♧", "◇"];
+  const icons = ["⌂", "▷", "♙", "♟", "⚒", "ϟ", "♧", "◇", "◷"];
   $("#nav").innerHTML = [
     "Home",
     "Watch & run",
@@ -67,6 +67,7 @@ function nav() {
     "Skills",
     "MCP Connections",
     "Architecture",
+    "Execution history",
   ]
     .map(
       (n, i) =>
@@ -91,6 +92,8 @@ function render() {
   else if (page === "Watch & run") home();
   else if (page === "Agents" || page === "Teams") catalog();
   else if (page === "Architecture") architecture();
+  else if (page === "Execution history")
+    executionHistory().catch((e) => toast(e.message));
   else resources();
 }
 function avatarClass(value) {
@@ -223,43 +226,6 @@ function liveAgentCard(a, managerId) {
     usage.every((s) => s.inputTokens != null && s.outputTokens != null);
   return `<article class="agent live-agent activity-${status} ${selectedAgentId === id ? "selected" : ""}" data-agent="${esc(id)}" tabindex="0" role="button" aria-label="Inspect ${esc(a.agent)}"><span class="agent-kind">${id === managerId ? "Team manager" : "Agent"}</span><div class="live-avatar"><div class="avatar ${avatarClass(a.avatar)}" aria-hidden="true"></div></div><h2>${esc(a.agent)}</h2><span class="badge"><span class="activity-dot" aria-hidden="true"></span>${labels[status]}</span><p>${esc(state.agents.find((x) => x.id === id)?.role || "Saved agent")}</p><small>${usage.length} completed task${usage.length === 1 ? "" : "s"}${known ? ` · ${usage.reduce((n, s) => n + s.inputTokens + s.outputTokens, 0)} tokens` : ""}</small></article>`;
 }
-function interactionTimeline() {
-  const events = (run?.events || []).filter((e) =>
-    [
-      "delegation",
-      "reply",
-      "agent_started",
-      "agent_completed",
-      "agent_failed",
-      "tool_started",
-      "tool_completed",
-      "tool_failed",
-    ].includes(e.type),
-  );
-  if (!events.length)
-    return '<p class="muted">Start a real run. Requests, replies and tool activity will appear here as they happen.</p>';
-  return events
-    .map((e, i) => {
-      const d = e.data,
-        time = new Date(e.time * 1000).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-      if (["delegation", "reply"].includes(e.type))
-        return `<article class="dialogue-message ${e.type}"><small>${esc(time)} · ${e.type === "reply" ? "Reply" : d.kind === "question" ? "Question" : "Delegated task"}</small><h3>${esc(d.from)} <span aria-label="to">→</span> ${esc(d.to)}</h3><p>${esc(d.message)}</p>${d.context && e.type === "delegation" ? `<details><summary>Shared context</summary><p>${esc(d.context)}</p></details>` : ""}</article>`;
-      if (e.type === "agent_completed" && d.manager)
-        return `<article class="dialogue-message final-answer"><small>${esc(time)} · Final answer</small><h3>${esc(d.agent)}</h3><p>${esc(d.output)}</p></article>`;
-      if (e.type === "agent_started")
-        return `<div class="activity-event"><small>${esc(time)}</small><b>${esc(d.agent)} started a task</b><details><summary>Task received</summary><p>${esc(d.task)}</p></details></div>`;
-      if (e.type === "agent_completed")
-        return `<div class="activity-event"><small>${esc(time)}</small><b>${esc(d.agent)} shared a result</b>${run?.orchestration !== "managed" ? `<p>${esc(d.output)}</p>` : ""}</div>`;
-      if (e.type === "agent_failed")
-        return `<div class="activity-event danger"><b>${esc(d.agent)} could not complete the task</b></div>`;
-      return `<div class="activity-event"><small>${esc(time)}</small><b>Tool ${e.type === "tool_started" ? "started" : e.type === "tool_failed" ? "failed" : "completed"}: ${esc(d.name)}</b>${e.type === "tool_completed" ? `<p>${esc(d.output)}</p>` : ""}</div>`;
-    })
-    .join("");
-}
 function realWatch() {
   const team = state.teams.find((t) => t.id === activeTeamId) || state.teams[0];
   activeTeamId = team?.id || "";
@@ -295,7 +261,7 @@ function realWatch() {
     ["delegation", "reply"].includes(e.type),
   );
   $("#main").innerHTML =
-    `<h1>Watch your team work</h1><p class="subtitle">Follow the manager's decisions and the agents' conversations live.</p>${run?.failed ? `<section class="panel danger" role="alert">${esc(run.error)}</section>` : ""}<div class="toolbar"><select aria-label="Run type" id="executionMode" ${busy ? "disabled" : ""}><option value="real">Real AI · live</option><option value="demo">Educational samples · optional</option></select><select aria-label="Team" id="team" ${busy ? "disabled" : ""}>${state.teams.map((t) => `<option value="${esc(t.id)}" ${t.id === activeTeamId ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select><button id="teamMode" class="${mode === "team" ? "primary" : ""}" ${busy ? "disabled" : ""}>Team</button><button id="one" class="${mode === "one" ? "primary" : ""}" ${busy ? "disabled" : ""}>One agent</button><button id="configureTeam" ${busy ? "disabled" : ""}>Configure manager</button></div><div class="panel goal-panel"><label for="goal">Your goal</label><div class="goal-actions"><input id="goal" maxlength="500" value="${esc(run?.goal || goalDraft)}" ${busy ? "disabled" : ""}><button class="orange" id="start" ${busy || !members.length ? "disabled" : ""}>${busy ? "Running…" : run ? "Run again" : "Run with AI"}</button></div></div><div class="layout live-layout"><div><section class="panel orchestration-panel"><div class="section-heading"><div><h2>${manager ? "Manager-led orchestration" : mode === "one" ? "Single agent" : "Choose your team manager"}</h2><p class="muted">${manager ? "The manager chooses who to involve and when. Agents can be called more than once." : mode === "one" ? "Watch this agent complete your goal." : "Open Configure manager to select who coordinates this team."}</p></div><span class="badge ${busy ? "working" : ""}">${busy ? "● Live" : run?.failed ? "Failed" : run?.completed ? "Complete" : "Ready"}</span></div>${manager ? `<div class="delegation-route ${busy && route ? "live-route" : ""}">${route ? `${esc(route.data.from)} → ${esc(route.data.to)} · ${route.type === "reply" ? "reply" : "task / question"}` : "↕ The manager chooses assignments; agents return their results"}</div>` : ""}<div class="orchestration-board">${manager ? liveAgentCard(manager, managerId) : ""}${workers.map((a) => liveAgentCard(a, managerId)).join("")}</div><p class="legend"><span class="activity-dot"></span> A pulsing card is executing. “Waiting for a reply” means work was delegated. Agents not selected by the manager stay idle.</p></section><section class="panel"><div class="section-heading"><h2>Live conversation</h2><span>${run?.events?.filter((e) => e.type === "delegation").length || 0} delegations</span></div><div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions">${interactionTimeline()}</div><small>Actual tasks, questions and replies. Internal model reasoning is never displayed.</small>${run?.completed ? '<p class="run-complete">✓ Run complete. The final answer and conversation are saved.</p>' : ""}</section></div><div class="inspector"><section class="panel"><h2>Inspect an agent</h2><h3>${esc(inspected?.agent || "Choose an agent")}</h3><p>${esc(inspected?.agentId === managerId ? "Coordinates the team and combines its results." : "Select a card to inspect the task and answer.")}</p><details open><summary>Task received</summary><p>${esc((inspected?.agentId === managerId ? run?.goal || goalDraft : currentTask?.task || last?.input) || "No task assigned yet.")}</p></details><details open><summary>Answer</summary><p>${esc(activity === "active" ? "Working on the current task…" : last?.output || "No completed answer yet.")}</p></details><small>Model: ${esc(last?.model || state.agents.find((a) => a.id === inspected?.agentId)?.model?.name || "Choose in agent settings")}</small></section><section class="panel"><h2>Provider usage</h2><p>${usageLabel(run, run?.steps.length || 0)}</p><p>${run?.events?.filter((e) => e.type === "tool_completed").length || 0} tool calls completed</p><small>Usage comes from the provider. Missing usage stays unavailable.</small></section></div></div>`;
+    `<h1>Watch your team work</h1><p class="subtitle">Follow the manager's decisions and the agents' conversations live.</p>${run?.failed ? `<section class="panel danger" role="alert">${esc(run.error)}</section>` : ""}<div class="toolbar"><select aria-label="Run type" id="executionMode" ${busy ? "disabled" : ""}><option value="real">Real AI · live</option><option value="demo">Educational samples · optional</option></select><select aria-label="Team" id="team" ${busy ? "disabled" : ""}>${state.teams.map((t) => `<option value="${esc(t.id)}" ${t.id === activeTeamId ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select><button id="teamMode" class="${mode === "team" ? "primary" : ""}" ${busy ? "disabled" : ""}>Team</button><button id="one" class="${mode === "one" ? "primary" : ""}" ${busy ? "disabled" : ""}>One agent</button><button id="configureTeam" ${busy ? "disabled" : ""}>Configure manager</button></div><div class="panel goal-panel"><label for="goal">Your goal</label><div class="goal-actions"><input id="goal" maxlength="500" value="${esc(run?.goal || goalDraft)}" ${busy ? "disabled" : ""}><button class="orange" id="start" ${busy || !members.length ? "disabled" : ""}>${busy ? "Running…" : run ? "Run again" : "Run with AI"}</button></div></div><div class="layout live-layout"><div><section class="panel orchestration-panel"><div class="section-heading"><div><h2>${manager ? "Manager-led orchestration" : mode === "one" ? "Single agent" : "Choose your team manager"}</h2><p class="muted">${manager ? "The manager chooses who to involve and when. Agents can be called more than once." : mode === "one" ? "Watch this agent complete your goal." : "Open Configure manager to select who coordinates this team."}</p></div><span class="badge ${busy ? "working" : ""}">${busy ? "● Live" : run?.failed ? "Failed" : run?.completed ? "Complete" : "Ready"}</span></div>${manager ? `<div class="delegation-route ${busy && route ? "live-route" : ""}">${route ? `${esc(route.data.from)} → ${esc(route.data.to)} · ${route.type === "reply" ? "reply" : "task / question"}` : "↕ The manager chooses assignments; agents return their results"}</div>` : ""}<div class="orchestration-board">${manager ? liveAgentCard(manager, managerId) : ""}${workers.map((a) => liveAgentCard(a, managerId)).join("")}</div><p class="legend"><span class="activity-dot"></span> A pulsing card is executing. “Waiting for a reply” means work was delegated. Agents not selected by the manager stay idle.</p></section>${artifactCards()}<section class="panel"><div class="section-heading"><h2>Live conversation & execution steps</h2><span>${run?.events?.filter((e) => e.type === "delegation").length || 0} delegations</span></div><div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions">${interactionTimeline()}</div><small>Actual tasks, questions and replies. Internal model reasoning is never displayed.</small>${run?.completed ? '<p class="run-complete">✓ Run complete. The final answer and conversation are saved.</p>' : ""}</section></div><div class="inspector"><section class="panel"><h2>Inspect an agent</h2><h3>${esc(inspected?.agent || "Choose an agent")}</h3><p>${esc(inspected?.agentId === managerId ? "Coordinates the team and combines its results." : "Select a card to inspect the task and answer.")}</p><details open><summary>Task received</summary><p>${esc((inspected?.agentId === managerId ? run?.goal || goalDraft : currentTask?.task || last?.input) || "No task assigned yet.")}</p></details><details open><summary>Answer</summary><p>${esc(activity === "active" ? "Working on the current task…" : last?.output || "No completed answer yet.")}</p></details><small>Model: ${esc(last?.model || state.agents.find((a) => a.id === inspected?.agentId)?.model?.name || "Choose in agent settings")}</small></section><section class="panel"><h2>Provider usage</h2><p>${usageLabel(run, run?.steps.length || 0)}</p><p>${run?.events?.filter((e) => e.type === "tool_completed").length || 0} tool calls completed</p><small>Usage comes from the provider. Missing usage stays unavailable.</small></section></div></div>`;
   const conversation = $("#conversation");
   conversation.scrollTop = follow ? conversation.scrollHeight : scroll;
   $("#goal").oninput = (e) => (goalDraft = e.target.value);
@@ -884,22 +850,6 @@ function editor(key, id) {
     }
   };
 }
-function importSkill() {
-  modal(
-    `<h2>Import a skill</h2><p>Paste a plain JSON skill. This adds instructions only. It never installs or runs code.</p><form id="skillForm"><label class="field">Skill JSON<textarea id="skillJson" rows="12">${esc(JSON.stringify({ id: "friendly-plan", name: "Friendly plan", description: "Write a plan that is easy to follow.", instructions: "Use three short steps. Explain new words. Give one example.", requires: [] }, null, 2))}</textarea></label><button class="primary">Validate and import</button></form>`,
-  );
-  $("#skillForm").onsubmit = async (e) => {
-    e.preventDefault();
-    try {
-      state = await api("skills", JSON.parse($("#skillJson").value));
-      $("#dialog").close();
-      render();
-      toast("Skill imported. Assign it to an agent when ready.");
-    } catch (e) {
-      toast(e.message);
-    }
-  };
-}
 function mcpEditor(id) {
   const c = state.catalog.mcp.find((c) => c.id === id) || {
     id: "",
@@ -929,8 +879,34 @@ function resources() {
     page
   ];
   $("#main").innerHTML =
-    `<h1>${page}</h1><p class="subtitle">Small building blocks for your agents.</p>${k === "skills" ? '<button id="importSkill">Import a skill</button><p class="muted">Only plain instructions are imported. No scripts or plugins.</p>' : ""}${k === "mcp" ? '<button class="primary" id="addMcp">+ Add HTTP connection</button><p class="muted">Connect → Discover tools → Choose permissions in Agents. New tools always start off.</p>' : ""}<div class="panel"><b>Tools run only when assigned and requested.</b><p>Assign or remove each item in Agents → Edit. MCP permissions are selected one tool at a time.</p></div><div class="list">${state.catalog[k].map((x) => `<section class="panel"><h2>${esc(x.name)}</h2><p>${esc(x.description || (x.id === "documents" ? "Built-in teaching documents. No private files are read." : x.url))}</p>${x.transport ? `<span class="badge">${esc(x.status)}</span><p class="muted">${esc(x.authType)} authentication · ${x.hasCredential ? "credential saved" : "no credential saved"}</p>` : ""}${x.tools ? x.tools.map((t) => `<p>□ ${esc(t.name)} <small>(${esc(t.id)})</small></p>`).join("") : ""}${x.requires?.length ? "<small>Tool dependencies require your explicit choice.</small>" : ""}<div class="toolbar"><button data-assign>Choose agents</button>${k === "mcp" ? `<button data-discover="${esc(x.id)}">${x.id === "documents" ? "Check connection" : "Discover tools"}</button>${x.id !== "documents" ? `<button data-mcp-edit="${esc(x.id)}">Edit</button><button class="danger" data-mcp-remove="${esc(x.id)}">Remove</button>` : ""}` : ""}</div></section>`).join("")}</div>`;
+    `<h1>${page}</h1><p class="subtitle">Small building blocks for your agents.</p>${k === "skills" ? '<button id="importSkill">Import a skill</button><p class="muted">Codex SKILL.md format. The manager can choose skills when needed; every choice appears in the execution history.</p>' : ""}${k === "mcp" ? '<button class="primary" id="addMcp">+ Add HTTP connection</button> <button id="importPlugin">Import plugin ZIP</button><p class="muted">Connect → Discover tools → Choose permissions in Agents. New tools always start off.</p>' : ""}<div class="panel"><b>Tools run only when assigned and requested.</b><p>Assign or remove each item in Agents → Edit. MCP permissions are selected one tool at a time.</p></div><div class="list">${state.catalog[k].map((x) => `<section class="panel"><h2>${esc(x.name)}</h2><p>${esc(x.description || (x.id === "documents" ? "Built-in teaching documents. No private files are read." : x.url))}</p>${x.transport ? `<span class="badge">${esc(x.status)}</span><p class="muted">${esc(x.authType)} authentication · ${x.hasCredential ? "credential saved" : "no credential saved"}</p>` : ""}${x.tools ? x.tools.map((t) => `<p>□ ${esc(t.name)} <small>(${esc(t.id)})</small></p>`).join("") : ""}${x.requires?.length ? "<small>Tool dependencies require your explicit choice.</small>" : ""}${k === "tools" && x.id === "image-generator" ? `<button id="configureImages">Configure image model</button><p class="muted">ChatGPT plan access does not include hosted image generation. Configure an image API key here without changing your agents’ ChatGPT connection.</p>` : ""}${k === "skills" ? `<button data-skill-view="${esc(x.id)}">View SKILL.md</button> <button class="danger" data-skill-remove="${esc(x.id)}">Remove skill</button>` : ""}<div class="toolbar"><button data-assign>Choose agents</button>${k === "mcp" ? `<button data-discover="${esc(x.id)}">${x.id === "documents" ? "Check connection" : "Discover tools"}</button>${x.id !== "documents" ? `${x.transport !== "stdio" ? `<button data-mcp-edit="${esc(x.id)}">Edit</button>` : ""}<button class="danger" data-mcp-remove="${esc(x.id)}">Remove</button>` : ""}` : ""}</div></section>`).join("")}</div>`;
   if ($("#importSkill")) $("#importSkill").onclick = importSkill;
+  if ($("#configureImages"))
+    $("#configureImages").onclick = configureImageProvider;
+  if ($("#importPlugin")) $("#importPlugin").onclick = pluginImport;
+  document.querySelectorAll("[data-skill-view]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const skill = state.catalog.skills.find(
+          (s) => s.id === b.dataset.skillView,
+        );
+        modal(
+          `<h2>${esc(skill.name)}</h2><pre class="skill-source">${esc(skill.markdown || `---\nname: ${skill.id}\ndescription: ${skill.description}\n---\n${skill.instructions}`)}</pre>`,
+        );
+      }),
+  );
+  document.querySelectorAll("[data-skill-remove]").forEach(
+    (b) =>
+      (b.onclick = async () => {
+        try {
+          state = await api("skills/remove", { id: b.dataset.skillRemove });
+          render();
+          toast("Skill removed from the registry and agent assignments.");
+        } catch (e) {
+          toast(e.message);
+        }
+      }),
+  );
   if ($("#addMcp")) $("#addMcp").onclick = () => mcpEditor();
   document.querySelectorAll("[data-assign]").forEach(
     (b) =>
@@ -1123,10 +1099,7 @@ async function realRun(body) {
     }
     toast(e.message);
   } finally {
-    (busy = false),
-      (activeTeamId = ""),
-      (selectedAgentId = null),
-      (goalDraft = "Explain how a team can plan a picnic.");
+    busy = false;
     if (page === "Home") dashboard();
     else if (page === "Watch & run") home();
   }
@@ -1147,3 +1120,215 @@ api("state")
     $("#main").textContent =
       "Could not load AgentSim. Start the Python server and refresh.";
   });
+
+function artifactCards(record = run) {
+  const items = (record?.events || [])
+    .filter((e) => e.type === "artifact_created")
+    .map((e) => e.data);
+  if (!items.length) return "";
+  return `<section class="panel"><h2>Generated results</h2><div class="artifact-grid">${items.map((a) => `<article class="artifact-card"><h3>${esc(a.title)}</h3><small>${esc(a.agent)} · ${esc(a.extension.toUpperCase())} · ${esc(a.bytes)} bytes</small>${a.extension === "png" ? `<img src="${esc(a.url)}" alt="${esc(a.title)}" loading="lazy">` : a.extension === "html" ? `<iframe src="${esc(a.url)}" sandbox="allow-scripts" title="${esc(a.title)}" loading="lazy"></iframe>` : a.extension === "pdf" ? `<object data="${esc(a.url)}" type="application/pdf" height="360"><p>Open the PDF to view this report.</p></object>` : ""}<a href="${esc(a.url)}" target="_blank" rel="noopener">Open ${esc(a.extension.toUpperCase())}</a> · <a href="${esc(a.url)}" download>Download</a></article>`).join("")}</div></section>`;
+}
+function interactionTimeline(record = run) {
+  const events = record?.events || [];
+  if (!events.length) {
+    if (record?.steps?.length)
+      return (
+        '<p class="muted">Legacy saved run: per-event class/location metadata was not recorded.</p>' +
+        record.steps
+          .map(
+            (s, i) =>
+              `<article class="dialogue-message"><small>Saved step ${i + 1} · ${esc(record.provider === "demo" ? "Educational sample" : "Legacy result")}</small><h3>${esc(s.agent)}</h3><p>${esc(s.output)}</p></article>`,
+          )
+          .join("")
+      );
+    return '<p class="muted">Start a run to follow its actual steps, decisions, skills, tools and outputs.</p>';
+  }
+  return events
+    .map((e, i) => {
+      const d = e.data,
+        time = new Date(e.time * 1000).toLocaleTimeString();
+      const label = e.type.replaceAll("_", " ");
+      let body = "";
+      if (["delegation", "reply"].includes(e.type))
+        body = `<h3>${esc(d.from)} → ${esc(d.to)}</h3><p>${esc(d.message)}</p>${d.context ? `<details><summary>Shared context</summary><p>${esc(d.context)}</p></details>` : ""}`;
+      else if (e.type === "skill_selected")
+        body = `<h3>Skill chosen: ${esc(d.skill)}</h3><p>${esc(d.selectedBy)} selected this skill for ${esc(d.agent)}.</p><p><b>Why:</b> ${esc(d.reason)}</p>`;
+      else if (e.type === "skill_applied")
+        body = `<h3>${esc(d.agent)} · ${esc(d.skill)}</h3><p>${esc(d.explanation)}</p>`;
+      else if (e.type === "agent_started")
+        body = `<h3>${esc(d.agent)} started</h3><details><summary>Task received</summary><p>${esc(d.task)}</p></details>`;
+      else if (e.type === "agent_completed")
+        body = `<h3>${esc(d.agent)} · ${d.manager ? "Final answer" : "Result"}</h3><p>${esc(d.output)}</p>`;
+      else if (e.type === "artifact_created")
+        body = `<h3>${esc(d.title)}</h3><a href="${esc(d.url)}" target="_blank" rel="noopener">View generated ${esc(d.extension.toUpperCase())}</a>`;
+      else if (e.type === "tool_completed") {
+        const out = d.output;
+        body = `<h3>${esc(d.name)} completed</h3><p>${esc(typeof out === "string" ? out : out?.text || "Results returned to the agent.")}</p>${
+          out?.sources?.length
+            ? `<ul>${out.sources
+                .filter((s) => /^https?:\/\//.test(s.url))
+                .map(
+                  (s) =>
+                    `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`,
+                )
+                .join("")}</ul>`
+            : ""
+        }`;
+      } else if (e.type === "usage")
+        body = `<h3>Provider usage</h3><p>Input: ${esc(d.input ?? "unavailable")} · Output: ${esc(d.output ?? "unavailable")} tokens</p>`;
+      else if (e.type === "model_started")
+        body = `<h3>${esc(d.agent)} · ${esc(d.model)}</h3><p>${esc(d.explanation)}</p>`;
+      else
+        body = `<h3>${esc(d.name || d.agent || record?.roster?.find((a) => a.agentId === d.agentId)?.agent || label)}</h3><p>${esc(d.explanation || d.error || label)}</p>`;
+      const detail = JSON.stringify(d, null, 2);
+      return `<article class="dialogue-message trace-event event-${e.type}"><small>Step ${e.sequence || i + 1} · ${esc(time)} · ${esc(label)}</small>${body}<details class="provenance"><summary>Where it ran · implementation · evidence</summary><p><b>Where:</b> ${esc(d.where || "Local harness")}<br><b>Class / function:</b> <code>${esc(d.implementation || "Legacy event")}</code></p><p>${esc(d.explanation || "Recorded execution event.")}</p><pre>${esc(detail)}</pre></details></article>`;
+    })
+    .join("");
+}
+let historySelectedId = null,
+  historyTimer = null;
+async function executionHistory() {
+  clearTimeout(historyTimer);
+  const items = await api("executions");
+  if (page !== "Execution history") return;
+  $("#main").innerHTML =
+    `<h1>Execution history</h1><p class="subtitle">All recorded runs, including failures and interrupted work. Open a run to inspect every public step.</p><button id="refreshHistory">Refresh</button><div class="history-layout"><div class="list">${items.map((j) => `<button class="panel history-run" data-history="${esc(j.id)}"><span class="badge">${esc(j.status)}</span><h3>${esc(j.team)}</h3><p>${esc(j.goal)}</p><small>${j.eventCount} events${j.startedAt ? " · " + esc(new Date(j.startedAt * 1000).toLocaleString()) : ""}</small></button>`).join("") || "<p>No recorded runs yet.</p>"}</div><div id="historyDetail"></div></div>`;
+  $("#refreshHistory").onclick = () => executionHistory();
+  async function show(id) {
+    historySelectedId = id;
+    const job = await api("jobs/" + id);
+    if (page !== "Execution history") return;
+    const record = { ...job.run, events: job.events };
+    $("#historyDetail").innerHTML =
+      `<section class="panel"><h2>${esc(record.goal)}</h2><p>${esc(job.status)} · ${esc(record.team)}</p>${job.error ? `<p class="danger">${esc(job.error)}</p>` : ""}<p>Each step identifies what ran, where it ran and which class handled it. This is public execution evidence, not hidden model reasoning.</p><div class="conversation history-conversation">${interactionTimeline(record)}</div></section>${artifactCards(record)}`;
+  }
+  document
+    .querySelectorAll("[data-history]")
+    .forEach((b) => (b.onclick = () => show(b.dataset.history)));
+  if (historySelectedId && items.some((j) => j.id === historySelectedId))
+    await show(historySelectedId);
+  if (items.some((j) => j.status === "running"))
+    historyTimer = setTimeout(() => {
+      if (page === "Execution history")
+        executionHistory().catch((e) => toast(e.message));
+    }, 1500);
+}
+function importSkill() {
+  modal(
+    `<h2>Import Codex SKILL.md</h2><p>Upload a Markdown file with YAML name and description, followed by the skill instructions. Instructions become available to the orchestrator; uploaded scripts are not executed as skills.</p><form id="skillForm"><label class="field">Markdown file<input type="file" id="skillFile" accept=".md,.markdown,text/markdown"></label><label class="field">SKILL.md<textarea id="skillMarkdown" rows="15">---\nname: clear-report\ndescription: Use when preparing a clear report with cited sources.\n---\n# Clear report\nExplain the result, cite sources and state limitations.</textarea></label><button class="primary">Import skill</button></form>`,
+  );
+  $("#skillFile").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (file) $("#skillMarkdown").value = await file.text();
+  };
+  $("#skillForm").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      state = await api("skills/import", {
+        markdown: $("#skillMarkdown").value,
+      });
+      $("#dialog").close();
+      render();
+      toast("Skill imported. The manager can select it when relevant.");
+    } catch (e) {
+      toast(e.message);
+    }
+  };
+}
+function pluginImport() {
+  let encoded = "",
+    preview = null;
+  modal(
+    `<h2>Import MCP plugin ZIP</h2><p>Choose a ZIP containing .mcp.json or mcp.json. <a href="/example-mcp-plugin.zip" download>Download the local MCP example</a>. The manifest is inspected before import. HTTP servers and packaged Python/Node stdio entry points are supported; dependency installers are not run.</p><form id="pluginForm"><label class="field">Plugin ZIP<input id="pluginZip" type="file" accept=".zip,application/zip" required></label><div id="pluginPreview"></div><label class="field">Access key<input id="pluginKey" type="password" autocomplete="off"><small>Stored in protected local credentials; never included in exports or execution logs.</small></label><label class="check" id="pluginTrustLabel" hidden><input type="checkbox" id="pluginTrust">I reviewed this package and trust its code to run with my local user permissions.</label><button class="primary" id="installPlugin" disabled>Import and discover tools</button></form>`,
+  );
+  $("#pluginZip").onchange = async (e) => {
+    try {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 10000000) throw Error("ZIP limit is 10 MB.");
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 32768)
+        binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
+      encoded = btoa(binary);
+      preview = await api("plugins/inspect", { zip: encoded });
+      $("#pluginPreview").innerHTML =
+        `<h3>Plugin contents</h3>${preview.connections.map((c) => `<p><b>${esc(c.name)}</b> · ${esc(c.transport)}<br>${esc(c.url)}</p>${c.sourcePreview ? `<details><summary>Entry-point source (first 20 KB)</summary><pre>${esc(c.sourcePreview)}</pre></details>` : ""}`).join("")}<p>${preview.skills.length} skills · ${preview.files.length} packaged files</p><details><summary>Files</summary><pre>${esc(preview.files.join("\n"))}</pre></details>`;
+      $("#pluginTrustLabel").hidden = !preview.runsLocalCode;
+      $("#installPlugin").disabled = false;
+    } catch (e) {
+      $("#installPlugin").disabled = true;
+      toast(e.message);
+    }
+  };
+  $("#pluginForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const button = $("#installPlugin");
+    button.disabled = true;
+    try {
+      const result = await api("plugins/import", {
+        zip: encoded,
+        accessKey: $("#pluginKey").value,
+        trustLocal: $("#pluginTrust").checked,
+      });
+      state = result.state;
+      $("#dialog").close();
+      render();
+      toast(result.discovery.map((x) => x.id + ": " + x.status).join(" · "));
+    } catch (e) {
+      button.disabled = false;
+      toast(e.message);
+    }
+  };
+}
+
+async function configureImageProvider() {
+  try {
+    const settings = await api("image-provider");
+    modal(
+      `<h2>Image model</h2><p>Your agent prepares the image prompt. A dedicated image model generates the file. This keeps the agent's existing ChatGPT connection.</p><form id="imageProviderForm"><label class="field">API base URL<input name="base_url" value="${esc(settings.base_url)}" required></label><label class="field">Image API key<input type="password" autocomplete="off" name="api_key" placeholder="${settings.configured ? "Saved · leave blank to keep" : "Enter locally"}"></label><button type="button" id="imageModels">Load available image models</button><label class="field">Image model<select name="model" id="imageProviderModel">${settings.model ? `<option value="${esc(settings.model)}">${esc(settings.model)}</option>` : '<option value="">Load models from your image account</option>'}</select></label><button class="primary">Save image provider</button>${settings.configured ? '<button type="button" id="clearImageProvider">Disconnect image model</button>' : ""}<p class="muted">The key is stored in protected local credentials and excluded from exports and execution logs.</p></form>`,
+    );
+    if ($("#clearImageProvider"))
+      $("#clearImageProvider").onclick = async () => {
+        try {
+          await api("image-provider/clear", {});
+          $("#dialog").close();
+          toast("Image-provider credentials removed.");
+        } catch (e) {
+          toast(e.message);
+        }
+      };
+    $("#imageModels").onclick = async () => {
+      try {
+        const response = await api(
+          "image-provider/models",
+          Object.fromEntries(new FormData($("#imageProviderForm"))),
+        );
+        $("#imageProviderModel").innerHTML = response.models
+          .map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`)
+          .join("");
+        if (!response.models.length)
+          toast("This key returned no compatible GPT Image models.");
+      } catch (e) {
+        toast(e.message);
+      }
+    };
+    $("#imageProviderForm").onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api(
+          "image-provider/save",
+          Object.fromEntries(new FormData(e.target)),
+        );
+        $("#dialog").close();
+        toast(
+          "Image model configured. The agent account connection is unchanged.",
+        );
+      } catch (e) {
+        toast(e.message);
+      }
+    };
+  } catch (e) {
+    toast(e.message);
+  }
+}
