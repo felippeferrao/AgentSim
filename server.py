@@ -424,6 +424,8 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return
+        if url.path == "/api/image-runtime":
+            return self.reply(harness.ChatGPTImageRuntime.settings())
         if url.path == "/api/image-provider":
             return self.reply(harness.ImageProvider.settings())
         if url.path == "/api/conversations":
@@ -562,6 +564,8 @@ class Handler(BaseHTTPRequestHandler):
             s = read()
             if self.path == "/api/conversations":
                 return self.reply(conversations().create(s, body), 201)
+            if self.path == "/api/image-runtime/login":
+                return self.reply(harness.ChatGPTImageRuntime.login())
             if self.path == "/api/image-provider/clear":
                 auth.store("image-provider", {})
                 return self.reply(harness.ImageProvider.settings())

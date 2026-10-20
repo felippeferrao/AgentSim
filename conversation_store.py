@@ -27,7 +27,18 @@ class ConversationStore:
             row = db.execute("SELECT data FROM conversations WHERE id=?", (ident,)).fetchone()
         if not row:
             raise ValueError("Conversation not found.")
-        return json.loads(row[0])
+        record = json.loads(row[0])
+        for message in record["messages"]:
+            if message["role"] == "assistant" and "artifacts" not in message:
+                with self.connect() as db:
+                    execution = db.execute(
+                        "SELECT data FROM executions WHERE id=?", (message.get("runId"),)
+                    ).fetchone()
+                events = json.loads(execution[0]).get("events", []) if execution else []
+                message["artifacts"] = [
+                    e["data"] for e in events if e["type"] == "artifact_created"
+                ]
+        return record
 
     def list(self):
         with self.connect() as db:
@@ -104,6 +115,9 @@ class ConversationStore:
                 "name": record["name"],
                 "runId": job["id"],
                 "status": job["status"],
+                "artifacts": [
+                    e["data"] for e in job.get("events", []) if e["type"] == "artifact_created"
+                ],
                 "time": time.time(),
             }
         )

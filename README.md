@@ -94,6 +94,6 @@ MCP Connections can import a plugin ZIP plus an access key, inspect .mcp.json/mc
 
 Execution history persists running/completed/failed/interrupted/rejected work and every public event with sequence, time, location and implementation class. Historical artifacts remain available. A restart preserves evidence and marks unfinished work interrupted; it does not resume execution.
 
-**ChatGPT-plan limitation confirmed:** hosted web search was verified live, while hosted image_generation is rejected by the subscription-sharing API. Tools → Image Generator → Configure image model accepts a dedicated image API key/model without changing the agents' ChatGPT connection. This optional account is stored independently and may be disconnected from the same form. No image API key has been supplied in this workspace, so live image generation remains unverified until configured.
+**Native ChatGPT image generation:** ChatGPT agents use the independently authenticated native Codex image runtime, without an API key. Tools → Image Generator → ChatGPT image connection handles its one-time sign-in. The direct subscription-sharing Responses route still rejects hosted image_generation; this native route is separate. Optional image API accounts remain available for deliberate API setups. Generated images, PDFs and Plotly outputs are attached to the assistant's chat message as well as the execution trace.
 
 [Harness extension contract, class map, Codex skill format, plugin schemas and examples](KnowledgeBase/HARNESS_INTEGRATIONS.md).

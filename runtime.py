@@ -4,6 +4,7 @@ import ast
 import asyncio
 import operator
 import os
+import re
 import sys
 
 os.environ["OTEL_SDK_DISABLED"] = "true"
@@ -155,10 +156,11 @@ class ResponsesLLM(BaseLLM):
         self.config = config
         self.emit = emit
         self.usage = []
+        self.generated_images = []
         self.current = 0
 
     def supports_function_calling(self):
-        return False
+        return self.config.get("nativeTools", False)
 
     def supports_stop_words(self):
         return False
@@ -180,12 +182,33 @@ class ResponsesLLM(BaseLLM):
         client = OpenAI(api_key=key, base_url=base, max_retries=0, timeout=90)
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
-        # CrewAI uses a text tool protocol. Only final task output reaches the UI.
-        inputs = [
-            {"role": m["role"], "content": m["content"]}
-            for m in messages
-            if m.get("role") in ("system", "user", "assistant")
-        ]
+        inputs = []
+        for message in messages:
+            if message.get("role") == "tool":
+                inputs.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": message["tool_call_id"],
+                        "output": str(message.get("content", "")),
+                    }
+                )
+                continue
+            if message.get("content") is not None and message.get("role") in (
+                "system",
+                "developer",
+                "user",
+                "assistant",
+            ):
+                inputs.append({"role": message["role"], "content": message["content"]})
+            for call in message.get("tool_calls", []):
+                inputs.append(
+                    {
+                        "type": "function_call",
+                        "call_id": call["id"],
+                        "name": call["function"]["name"],
+                        "arguments": call["function"]["arguments"],
+                    }
+                )
         if self.config.get("agentId"):
             self.emit(
                 "model_started",
@@ -205,6 +228,12 @@ class ResponsesLLM(BaseLLM):
             options["temperature"] = self.config["temperature"]
         if self.config.get("maxOutputTokens") is not None:
             options["max_output_tokens"] = self.config["maxOutputTokens"]
+        if tools and self.supports_function_calling():
+            options["tools"] = [
+                {"type": "function", **t.get("function", t), "strict": False} for t in tools
+            ]
+            if self.config.get("requireImage") and not self.generated_images:
+                options["tool_choice"] = {"type": "function", "name": "image_generator"}
         try:
             with client.responses.create(
                 model=self.model, input=inputs, store=False, stream=True, **options
@@ -236,6 +265,16 @@ class ResponsesLLM(BaseLLM):
         }
         self.usage.append(record)
         self.emit("usage", record)
+        calls = [o for o in final.output if o.type == "function_call"]
+        if calls:
+            return [
+                {
+                    "id": o.call_id,
+                    "type": "function",
+                    "function": {"name": o.name, "arguments": o.arguments},
+                }
+                for o in calls
+            ]
         return final.output_text
 
 
@@ -318,7 +357,16 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
     agent_config.update(
         {k: a["model"][k] for k in ["temperature", "maxOutputTokens", "contextWindow"]}
     )
-    agent_config.update(agentId=a["id"], agentName=a["name"])
+    agent_config.update(
+        agentId=a["id"],
+        agentName=a["name"],
+        imageTimeoutSeconds=max(15, a["behavior"]["maxExecutionSeconds"] - 15),
+    )
+    agent_config["nativeTools"] = (
+        "image-generator" in a["tools"]
+        and a["model"]["connection"] == "chatgpt"
+        and harness.ChatGPTImageRuntime.settings()["configured"]
+    )
     llm = ResponsesLLM(agent_config, emit)
     assigned = [] if manager else builtin_tools(a, emit, llm, state["catalog"]["mcp"])
     skill = ""
@@ -343,6 +391,8 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
                 actor=a, catalog=skill_catalog, members=[a], selections={}, event_sink=emit
             )
         )
+    if "image-generator" in a["tools"]:
+        skill += "\nFor image creation requests, call image_generator. Only report an image as generated after the tool returns a real PNG artifact URL. A description or promise is not a generated image."
     agent = agent_class(
         role=a["role"],
         goal=a["goal"] + skill,
@@ -360,6 +410,40 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
         **extra,
     )
     return agent, llm, agent_config, skill
+
+
+def image_result_guardrail(actor, goal, llm, emit):
+    if "image-generator" not in actor["tools"] or not (
+        re.search(
+            r"\b(image|picture|photo|illustration|imagem|foto|ilustra[çc][aã]o)\b", goal, re.I
+        )
+        and re.search(
+            r"\b(create|generate|draw|make|paint|crie|criar|gere|gerar|desenhe|fa[çc]a)\b",
+            goal,
+            re.I,
+        )
+    ):
+        return None
+
+    def check(output):
+        if llm.generated_images:
+            return True, output
+        emit(
+            "output_validation_failed",
+            {
+                "agentId": actor["id"],
+                "agent": actor["name"],
+                "implementation": "runtime.image_result_guardrail",
+                "where": "Local artifact verification",
+                "explanation": "The answer was rejected because the requested image has no real generated artifact.",
+            },
+        )
+        return (
+            False,
+            "No actual image artifact exists. Call image_generator now and return its PNG URL. Do not claim image generation from text alone.",
+        )
+
+    return check
 
 
 def execute(state, body, emit, config=None):
@@ -381,6 +465,7 @@ def execute(state, body, emit, config=None):
         a = profiles.validate(original)
         agent, llm, agent_config, skill = build_agent(a, state, config, emit)
         llm.current = i
+        llm.config["requireImage"] = image_result_guardrail(a, goal, llm, emit) is not None
 
         def callback(output, i=i, a=a, llm=llm, agent_config=agent_config):
             result = {
@@ -430,6 +515,8 @@ def execute(state, body, emit, config=None):
             agent=agent,
             context=list(tasks),
             callback=callback,
+            guardrail=image_result_guardrail(a, goal, llm, emit),
+            guardrail_max_retries=1,
         )
         agents.append(agent)
         tasks.append(task)

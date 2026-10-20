@@ -47,3 +47,9 @@ Latest profile navigation refinement: split the original step 1 into Identity (c
 - Execution is always real AI; remove the educational/real selector.
 - Choose Team or One agent, then explicitly choose the actual saved target. Individual agents work independently of team membership.
 - Open a persistent interactive chat on the left. Every user message triggers execution whose steps/results appear on the right, with scrolling and per-step inspection of the previously required evidence.
+
+## Native images and in-chat generated files
+
+- Image generation must work through the ChatGPT plan without requiring an image API key. Use the native ChatGPT/Codex runtime rather than the unsupported hosted image_generation route on subscription sharing.
+- Images, PDFs and charts must appear with the assistant's message in the chat, with open/download controls and persistent links to their execution evidence.
+- Never present a text-only image description as proof of a generated file.

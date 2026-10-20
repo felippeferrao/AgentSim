@@ -281,12 +281,12 @@ class AppTests(unittest.TestCase):
             ),
             "Final Answer: Created the report and chart.",
         ]
+        conversation = self.post("conversations", {"team": "research", "mode": "team"}).json()
         ident = self.post(
             "real-run",
             {
                 "goal": "Create a checked PDF report and a chart.",
-                "team": "research",
-                "mode": "team",
+                "conversationId": conversation["id"],
             },
         ).json()["id"]
         snapshots = []
@@ -299,6 +299,8 @@ class AppTests(unittest.TestCase):
         self.assertIn("skill_selected", [e["type"] for e in job["events"]])
         artifacts = [e["data"] for e in job["events"] if e["type"] == "artifact_created"]
         self.assertEqual({a["extension"] for a in artifacts}, {"pdf", "png", "svg", "html"})
+        saved_chat = httpx.get(self.base + "conversations/" + conversation["id"]).json()
+        self.assertEqual(saved_chat["messages"][-1]["artifacts"], artifacts)
         self.assertTrue(
             all(e["data"].get("implementation") and e["data"].get("where") for e in job["events"])
         )

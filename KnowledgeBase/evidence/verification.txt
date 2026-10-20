@@ -75,3 +75,16 @@ Chat workspace verification (2026-10-20)
 - Chat and right execution panel scroll independently. Step inspect shows class, where and evidence next to chat. Existing style retained.
 - Actual8080: removed sample selector; all four current agents available including Billy; opened empty Billy chat without sending a message or altering profiles/grants.
 - Proof screenshots: design/chat-billy.png (actual), design/chat-execution-fixture.png (controlled provider).
+
+Native ChatGPT images and in-chat files (2026-10-20)
+- Official native Codex CLI 0.163.0-alpha.10.2; native image_generation feature enabled.
+- Authenticated independently into AgentSim .local/image-runtime via official OAuth browser flow. No other auth cache copied, no image API key used.
+- Initial native generator probe created a real PNG; visual inspection confirmed dog/soda/hot-air balloon/Eiffel Tower.
+- Actual Billy UI execution c87731eb-adc2-4b48-bcb2-b5f148667f10: 17 events, 21:54:10–21:54:57, actual function call -> native runtime -> verified PNG -> final response.
+- Browser image decode: 1145x1374, complete=true, visible within assistant message. Inspect shows native runtime class/location.
+- Public event stream excludes raw native model text/reasoning/stderr/credentials. Native usage comes from terminal runtime usage event.
+- 46 tests, 20.975 seconds, OK; Ruff, node syntax, whitespace checks pass.
+- Full controlled PDF/Plotly application test asserts all four real artifact metadata records persist into the assistant chat message and actual PDF bytes remain retrievable.
+- Proof: design/native-chatgpt-image-chat.png (real external image inference).
+
+- Additional isolated browser verification: assistant message contains PDF document card plus Plotly HTML iframe, PNG and SVG download, using actual local file generation and a controlled provider. Proof: design/pdf-chart-chat-fixture.png.

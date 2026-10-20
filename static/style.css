@@ -1623,3 +1623,35 @@ pre {
   transform: scale(0.22);
   transform-origin: top left;
 }
+.chat-bubble .artifact-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.chat-bubble .panel {
+  padding: 10px;
+  margin: 10px 0;
+}
+.chat-bubble .artifact-card {
+  padding: 12px;
+  background: white;
+}
+.chat-bubble .artifact-card h3 {
+  font-size: 15px;
+}
+.chat-bubble .artifact-card img {
+  border-radius: 8px;
+}
+.chat-bubble .artifact-card iframe {
+  height: 340px;
+}
+.pdf-attachment {
+  border-radius: 10px;
+  padding: 20px;
+  margin: 12px 0;
+  background: #eef4fc;
+}
+.pdf-attachment > span {
+  font-size: 36px;
+  display: block;
+  color: #1873f4;
+}

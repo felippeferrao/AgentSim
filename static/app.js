@@ -332,13 +332,12 @@ function renderChatMessages() {
     (activeConversation?.messages || [])
       .map(
         (m) =>
-          `<article class="chat-bubble ${m.role === "user" ? "from-user" : "from-agent"} ${["failed", "interrupted", "rejected"].includes(m.status) ? "chat-error" : ""}"><b>${esc(m.role === "user" ? "You" : m.name || activeConversation.name)}</b><p>${esc(m.content)}</p>${m.role === "assistant" ? `<button class="message-evidence" data-turn="${esc(m.runId)}">Inspect this execution →</button>` : ""}</article>`,
+          `<article class="chat-bubble ${m.role === "user" ? "from-user" : "from-agent"} ${["failed", "interrupted", "rejected"].includes(m.status) ? "chat-error" : ""}"><b>${esc(m.role === "user" ? "You" : m.name || activeConversation.name)}</b><p>${esc(m.content)}</p>${m.role === "assistant" ? `${artifactCards({ artifacts: m.artifacts || [] })}<button class="message-evidence" data-turn="${esc(m.runId)}">Inspect this execution →</button>` : ""}</article>`,
       )
       .join("") ||
     '<div class="chat-empty"><h3>Start a conversation</h3><p>Send a message. The selected agent or team will reply here, while actions and results appear alongside.</p></div>';
   if (busy)
-    el.innerHTML +=
-      '<div class="chat-bubble from-agent" role="status">Working on your message… Follow the execution on the right.</div>';
+    el.innerHTML += `<div class="chat-bubble from-agent" role="status">Working on your message… Follow the execution on the right.${run?.conversationId === activeConversation?.id && run?.id === activeConversation?.activeRunId ? artifactCards(run) : ""}</div>`;
   el.scrollTop = follow ? el.scrollHeight : old;
   el.querySelectorAll("[data-turn]").forEach(
     (b) => (b.onclick = () => selectExecution(b.dataset.turn)),
@@ -405,6 +404,7 @@ function updateExecution(resetScroll = false) {
   if ($("#executionArtifacts").dataset.contentKey !== artifactsKey) {
     $("#executionArtifacts").innerHTML = artifactCards(run);
     $("#executionArtifacts").dataset.contentKey = artifactsKey;
+    if (busy) renderChatMessages();
   }
   $("#executionUsage").textContent =
     `Provider usage: ${usageLabel(run)} · ${(run?.events || []).filter((e) => e.type === "tool_completed").length} completed tool calls`;
@@ -887,7 +887,7 @@ function resources() {
     page
   ];
   $("#main").innerHTML =
-    `<h1>${page}</h1><p class="subtitle">Small building blocks for your agents.</p>${k === "skills" ? '<button id="importSkill">Import a skill</button><p class="muted">Codex SKILL.md format. The manager can choose skills when needed; every choice appears in the execution history.</p>' : ""}${k === "mcp" ? '<button class="primary" id="addMcp">+ Add HTTP connection</button> <button id="importPlugin">Import plugin ZIP</button><p class="muted">Connect → Discover tools → Choose permissions in Agents. New tools always start off.</p>' : ""}<div class="panel"><b>Tools run only when assigned and requested.</b><p>Assign or remove each item in Agents → Edit. MCP permissions are selected one tool at a time.</p></div><div class="list">${state.catalog[k].map((x) => `<section class="panel"><h2>${esc(x.name)}</h2><p>${esc(x.description || (x.id === "documents" ? "Built-in teaching documents. No private files are read." : x.url))}</p>${x.transport ? `<span class="badge">${esc(x.status)}</span><p class="muted">${esc(x.authType)} authentication · ${x.hasCredential ? "credential saved" : "no credential saved"}</p>` : ""}${x.tools ? x.tools.map((t) => `<p>□ ${esc(t.name)} <small>(${esc(t.id)})</small></p>`).join("") : ""}${x.requires?.length ? "<small>Tool dependencies require your explicit choice.</small>" : ""}${k === "tools" && x.id === "image-generator" ? `<button id="configureImages">Configure image model</button><p class="muted">ChatGPT plan access does not include hosted image generation. Configure an image API key here without changing your agents’ ChatGPT connection.</p>` : ""}${k === "skills" ? `<button data-skill-view="${esc(x.id)}">View SKILL.md</button> <button class="danger" data-skill-remove="${esc(x.id)}">Remove skill</button>` : ""}<div class="toolbar"><button data-assign>Choose agents</button>${k === "mcp" ? `<button data-discover="${esc(x.id)}">${x.id === "documents" ? "Check connection" : "Discover tools"}</button>${x.id !== "documents" ? `${x.transport !== "stdio" ? `<button data-mcp-edit="${esc(x.id)}">Edit</button>` : ""}<button class="danger" data-mcp-remove="${esc(x.id)}">Remove</button>` : ""}` : ""}</div></section>`).join("")}</div>`;
+    `<h1>${page}</h1><p class="subtitle">Small building blocks for your agents.</p>${k === "skills" ? '<button id="importSkill">Import a skill</button><p class="muted">Codex SKILL.md format. The manager can choose skills when needed; every choice appears in the execution history.</p>' : ""}${k === "mcp" ? '<button class="primary" id="addMcp">+ Add HTTP connection</button> <button id="importPlugin">Import plugin ZIP</button><p class="muted">Connect → Discover tools → Choose permissions in Agents. New tools always start off.</p>' : ""}<div class="panel"><b>Tools run only when assigned and requested.</b><p>Assign or remove each item in Agents → Edit. MCP permissions are selected one tool at a time.</p></div><div class="list">${state.catalog[k].map((x) => `<section class="panel"><h2>${esc(x.name)}</h2><p>${esc(x.description || (x.id === "documents" ? "Built-in teaching documents. No private files are read." : x.url))}</p>${x.transport ? `<span class="badge">${esc(x.status)}</span><p class="muted">${esc(x.authType)} authentication · ${x.hasCredential ? "credential saved" : "no credential saved"}</p>` : ""}${x.tools ? x.tools.map((t) => `<p>□ ${esc(t.name)} <small>(${esc(t.id)})</small></p>`).join("") : ""}${x.requires?.length ? "<small>Tool dependencies require your explicit choice.</small>" : ""}${k === "tools" && x.id === "image-generator" ? `<button id="configureImages">ChatGPT image connection</button><p class="muted">Generates images through the native ChatGPT runtime using your plan. No API key required.</p>` : ""}${k === "skills" ? `<button data-skill-view="${esc(x.id)}">View SKILL.md</button> <button class="danger" data-skill-remove="${esc(x.id)}">Remove skill</button>` : ""}<div class="toolbar"><button data-assign>Choose agents</button>${k === "mcp" ? `<button data-discover="${esc(x.id)}">${x.id === "documents" ? "Check connection" : "Discover tools"}</button>${x.id !== "documents" ? `${x.transport !== "stdio" ? `<button data-mcp-edit="${esc(x.id)}">Edit</button>` : ""}<button class="danger" data-mcp-remove="${esc(x.id)}">Remove</button>` : ""}` : ""}</div></section>`).join("")}</div>`;
   if ($("#importSkill")) $("#importSkill").onclick = importSkill;
   if ($("#configureImages"))
     $("#configureImages").onclick = configureImageProvider;
@@ -1139,11 +1139,13 @@ api("state")
   });
 
 function artifactCards(record = run) {
-  const items = (record?.events || [])
-    .filter((e) => e.type === "artifact_created")
-    .map((e) => e.data);
+  const items =
+    record?.artifacts ||
+    (record?.events || [])
+      .filter((e) => e.type === "artifact_created")
+      .map((e) => e.data);
   if (!items.length) return "";
-  return `<section class="panel"><h2>Generated results</h2><div class="artifact-grid">${items.map((a) => `<article class="artifact-card"><h3>${esc(a.title)}</h3><small>${esc(a.agent)} · ${esc(a.extension.toUpperCase())} · ${esc(a.bytes)} bytes</small>${a.extension === "png" ? `<img src="${esc(a.url)}" alt="${esc(a.title)}" loading="lazy">` : a.extension === "html" ? `<iframe src="${esc(a.url)}" sandbox="allow-scripts" title="${esc(a.title)}" loading="lazy"></iframe>` : a.extension === "pdf" ? `<object data="${esc(a.url)}" type="application/pdf" height="360"><p>Open the PDF to view this report.</p></object>` : ""}<a href="${esc(a.url)}" target="_blank" rel="noopener">Open ${esc(a.extension.toUpperCase())}</a> · <a href="${esc(a.url)}" download>Download</a></article>`).join("")}</div></section>`;
+  return `<section class="panel"><h2>Generated results</h2><div class="artifact-grid">${items.map((a) => `<article class="artifact-card"><h3>${esc(a.title)}</h3><small>${esc(a.agent)} · ${esc(a.extension.toUpperCase())} · ${esc(a.bytes)} bytes</small>${a.extension === "png" ? `<img src="${esc(a.url)}" alt="${esc(a.title)}" loading="lazy">` : a.extension === "html" ? `<iframe src="${esc(a.url)}" sandbox="allow-scripts" title="${esc(a.title)}" loading="lazy"></iframe>` : a.extension === "pdf" ? `<div class="pdf-attachment"><span aria-hidden="true">▤</span><b>PDF document</b><p>Open the report to view its pages.</p></div>` : ""}<a href="${esc(a.url)}" target="_blank" rel="noopener">Open ${esc(a.extension.toUpperCase())}</a> · <a href="${esc(a.url)}" download>Download</a></article>`).join("")}</div></section>`;
 }
 function interactionTimeline(record = run) {
   const events = record?.events || [];
@@ -1301,10 +1303,35 @@ function pluginImport() {
 
 async function configureImageProvider() {
   try {
-    const settings = await api("image-provider");
+    const [settings, native] = await Promise.all([
+      api("image-provider"),
+      api("image-runtime"),
+    ]);
     modal(
-      `<h2>Image model</h2><p>Your agent prepares the image prompt. A dedicated image model generates the file. This keeps the agent's existing ChatGPT connection.</p><form id="imageProviderForm"><label class="field">API base URL<input name="base_url" value="${esc(settings.base_url)}" required></label><label class="field">Image API key<input type="password" autocomplete="off" name="api_key" placeholder="${settings.configured ? "Saved · leave blank to keep" : "Enter locally"}"></label><button type="button" id="imageModels">Load available image models</button><label class="field">Image model<select name="model" id="imageProviderModel">${settings.model ? `<option value="${esc(settings.model)}">${esc(settings.model)}</option>` : '<option value="">Load models from your image account</option>'}</select></label><button class="primary">Save image provider</button>${settings.configured ? '<button type="button" id="clearImageProvider">Disconnect image model</button>' : ""}<p class="muted">The key is stored in protected local credentials and excluded from exports and execution logs.</p></form>`,
+      `<h2>ChatGPT image generation</h2><section class="panel"><h3>Native ChatGPT runtime</h3><p>Your agent sends the image prompt to the native ChatGPT generator and brings the PNG back into this execution. Uses your ChatGPT plan; no API key is required.</p><p id="nativeImageStatus">${native.configured ? "Image session saved. Access is checked during generation." : native.available ? "Connect the image session once to start generating." : "Install the official Codex CLI to enable native images."}</p><button id="nativeImageLogin" ${native.available ? "" : "disabled"}>${native.configured ? "Reconnect ChatGPT images" : "Connect ChatGPT images"}</button> <button id="nativeImageRefresh">Check image session</button><div id="nativeImageLink"></div><small>This session is saved independently inside AgentSim. Other applications’ credentials are not copied.</small></section><details><summary>Optional API image provider</summary><form id="imageProviderForm"><label class="field">API base URL<input name="base_url" value="${esc(settings.base_url)}" required></label><label class="field">Image API key<input type="password" autocomplete="off" name="api_key" placeholder="${settings.configured ? "Saved · leave blank to keep" : "Enter locally"}"></label><button type="button" id="imageModels">Load available image models</button><label class="field">Image model<select name="model" id="imageProviderModel">${settings.model ? `<option value="${esc(settings.model)}">${esc(settings.model)}</option>` : '<option value="">Load models from your image account</option>'}</select></label><button class="primary">Save image provider</button>${settings.configured ? '<button type="button" id="clearImageProvider">Disconnect image model</button>' : ""}<p class="muted">The key is stored in protected local credentials and excluded from exports and execution logs.</p></form></details>`,
     );
+    $("#nativeImageLogin").onclick = async () => {
+      try {
+        $("#nativeImageLogin").disabled = true;
+        const login = await api("image-runtime/login", {});
+        $("#nativeImageLink").innerHTML =
+          `<p><a href="${esc(login.url)}" target="_blank" rel="noopener">Continue with ChatGPT →</a></p><p>After sign-in, click Check image session.</p>`;
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        $("#nativeImageLogin").disabled = false;
+      }
+    };
+    $("#nativeImageRefresh").onclick = async () => {
+      try {
+        const status = await api("image-runtime");
+        $("#nativeImageStatus").textContent = status.configured
+          ? "Image session saved. Ready to generate through ChatGPT."
+          : "Image sign-in has not completed yet.";
+      } catch (e) {
+        toast(e.message);
+      }
+    };
     if ($("#clearImageProvider"))
       $("#clearImageProvider").onclick = async () => {
         try {

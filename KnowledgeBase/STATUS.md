@@ -1,5 +1,19 @@
 # Delivery status — 2026-10-20, continued implementation
 
+## Latest: working native ChatGPT images and chat attachments
+
+The prior claim that all image generation required an API key was too broad. The subscription-sharing Responses endpoint still rejects hosted image_generation, but the official native ChatGPT/Codex runtime supports image generation with ChatGPT plan usage. `native_images.ChatGPTImageRuntime` now powers image-enabled ChatGPT agents through an independently authenticated, private AgentSim image session. No other application's credential cache was copied. No image API key was supplied. The Tools image form now leads with native ChatGPT sign-in/status; an API provider is optional.
+
+Live verification completed inside the actual application's Billy chat: execution `c87731eb-adc2-4b48-bcb2-b5f148667f10`, 17 public events from 21:54:10–21:54:57, successful native image tool invocation, actual validated PNG stored and served from the artifact route, final assistant reply with the image visible in chat. The browser decoded the image at 1145×1374. The right-hand inspect displays `native_images.ChatGPTImageRuntime` and `Local Codex CLI → ChatGPT native image service`. This is actual external inference with the owner's account, not a fixture. Proof: `design/native-chatgpt-image-chat.png`.
+
+Image-enabled ChatGPT agents now use proper Responses function schemas/calls/results, executed by CrewAI. Explicit image creation requires the granted function to run before a final answer. A real artifact guardrail rejects text-only generation claims. This also corrects a separately observed Billy run that claimed an image existed without any tool invocation. Historical records were preserved; the new successful run contains the actual image.
+
+Images, PDF document attachments and interactive/PNG/SVG chart outputs render within the assistant message, with open/download controls, as well as execution/history evidence. Files can appear while the turn finishes. Conversation messages persist their artifact metadata and older chats hydrate it from saved executions. PDF file cards open the actual PDF rather than displaying a blank embedded viewer in browsers lacking inline PDF support.
+
+Verification: **46 tests passed in 20.975 seconds**, including native runtime routing/output validation, rejection of stale files, private event/credential environment isolation, strict actual-image checks, structured function-call round trip and a full PDF/Plotly application run persisting its four real artifacts into the assistant message. Ruff, JavaScript syntax and whitespace checks pass. A separate controlled-provider browser run also verified four actual in-chat attachments (PDF, interactive HTML chart, PNG, SVG) with open/download links; proof: `design/pdf-chart-chat-fixture.png`. The real local server and current user tab are updated. No public deployment.
+
+The native runtime uses the installed official Codex CLI with shell/unified execution and web search disabled, workspace-write sandboxing, private file-backed auth/config and bounded generation time. Native image model ids are selected by the runtime and are not fabricated in public evidence. [Current harness behavior](HARNESS_INTEGRATIONS.md). Earlier sections are historical and their image API-key-only limitations are superseded by this section.
+
 ## Latest: explicit targets, conversational execution and side-by-side inspection
 
 Watch & run now always uses connected AI models. Removed the Real AI / Educational samples selector, the Home educational entry point and the active sample-run API. Historic sample records remain identifiable. Choose Team or One agent first, then explicitly select the target. One-agent calls resolve any saved agent directly, including an agent outside every team, rather than the first team member.

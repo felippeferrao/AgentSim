@@ -8,7 +8,7 @@ Watch & run always executes the connected AI models. There is no sample/real mod
 2. Select a saved team or any saved agent. An individual agent does not need team membership. No implicit first-member selection is made.
 3. Open the chat. Team chats require a configured manager; agent chats call the selected agent directly.
 4. Send messages on the left. Each message creates one automatic execution, with public events, tools, skill selection and generated files on the right. Enter sends, Shift+Enter inserts a newline.
-5. Inspect an execution from its assistant answer or select it in Message execution. Chat messages and execution evidence have independent scroll containers. Open inspectors and manual evidence scroll positions survive live updates; the message composer is not rebuilt by streamed events.
+5. Inspect an execution from its assistant answer or select it in Message execution. Images, PDF attachments and generated Plotly charts appear inside the assistant message, with open/download controls. Available files can appear while a turn finishes. Chat messages and execution evidence have independent scroll containers. Open inspectors and manual evidence scroll positions survive live updates; the message composer is not rebuilt by streamed events.
 6. Saved chats reopens prior conversations and their execution evidence. Reload restores the last selected chat; an active job can reconnect to its event stream. A server restart marks unfinished work interrupted rather than replaying it.
 
 The existing visual style, mascot and avatar assets remain. Activity cards pulse while their agents run. Tools, skill and MCP grants still come from each selected agent's current saved profile.
@@ -24,3 +24,5 @@ The existing visual style, mascot and avatar assets remain. Activity cards pulse
 - Existing tool/MCP events, skill reasons, provider usage and artifacts flow through `execution_log.enrich` and durable execution records. The UI renders the same evidence used by Execution history; it does not create simulated execution steps.
 
 No external inference is triggered by selecting a target or opening a chat. Inference begins only when the user sends a message. Own account credentials remain independent of conversation history and are not exported into prompts or logs by this flow.
+
+Assistant messages persist real artifact metadata. Conversations from earlier versions hydrate missing attachments from their saved execution events. No output is fabricated from answer text.

@@ -323,6 +323,7 @@ pendulum==3.3.0
     # via cel-python
 pillow==13.0.0
     # via
+    #   -r requirements.txt
     #   pdfplumber
     #   reportlab
 platformdirs==4.13.5

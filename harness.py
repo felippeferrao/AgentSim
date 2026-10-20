@@ -13,6 +13,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 import auth
+from native_images import ChatGPTImageRuntime
 
 CATALOG = [
     {"id": "calculator", "name": "Calculator", "description": "Calculate numbers with + - * /."},
@@ -29,7 +30,7 @@ CATALOG = [
     {
         "id": "image-generator",
         "name": "Image Generator",
-        "description": "Generate PNG images from the agent's prompt. Configure an image API model when using a ChatGPT plan.",
+        "description": "Generate PNG images with ChatGPT's native image runtime, using your ChatGPT plan without an API key.",
     },
     {
         "id": "chart-generator",
@@ -279,7 +280,15 @@ class IntegrationTool(BaseTool):
             "web-research": "harness.ProviderTools",
             "image-generator": "harness.ProviderTools",
         }[self.tool_id]
-        if self.tool_id == "image-generator" and ImageProvider.settings()["configured"]:
+        native_images = (
+            self.tool_id == "image-generator"
+            and self.llm_adapter.config["provider"] == "chatgpt"
+            and ChatGPTImageRuntime.settings()["configured"]
+        )
+        if native_images:
+            implementation = "native_images.ChatGPTImageRuntime"
+            where = "Local Codex CLI → ChatGPT native image service"
+        elif self.tool_id == "image-generator" and ImageProvider.settings()["configured"]:
             implementation = "harness.ImageProvider"
             where = "Image provider: " + urlsplit(ImageProvider.settings()["base_url"]).netloc
         metadata = {
@@ -312,11 +321,23 @@ class IntegrationTool(BaseTool):
                         store.write(title, "svg", svg),
                     ]
                 }
+            elif native_images:
+                images = ChatGPTImageRuntime.generate(
+                    request, self.llm_adapter, self.event_sink, self.actor
+                )
+                result = {"artifacts": [store.write(title, "png", data) for data in images]}
             elif self.tool_id == "image-generator" and ImageProvider.settings()["configured"]:
                 images = ImageProvider.generate(
                     request, self.llm_adapter, self.event_sink, self.actor
                 )
                 result = {"artifacts": [store.write(title, "png", data) for data in images]}
+            elif (
+                self.tool_id == "image-generator"
+                and self.llm_adapter.config["provider"] == "chatgpt"
+            ):
+                raise ValueError(
+                    "Connect the native ChatGPT image session in Tools → Image Generator. No API key is required."
+                )
             else:
                 response = ProviderTools(self.llm_adapter, self.event_sink, self.actor).request(
                     request, "web_search" if self.tool_id == "web-research" else "image_generation"
@@ -366,6 +387,10 @@ class IntegrationTool(BaseTool):
                 },
             )
             raise ValueError(message) from None
+        if self.tool_id == "image-generator":
+            if not hasattr(self.llm_adapter, "generated_images"):
+                self.llm_adapter.generated_images = []
+            self.llm_adapter.generated_images.extend(result["artifacts"])
         self.event_sink(
             "tool_completed",
             {
