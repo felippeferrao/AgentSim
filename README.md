@@ -65,6 +65,12 @@ Open Alternative: your API connection and enter your own key locally, never in c
 
 Credentials stay in ignored `.local/` files, written atomically with `0600` permissions. They are excluded from exports and public settings responses. This is OS file protection, not encryption at rest. Sign out clears local OAuth credentials; revoke remote access in ChatGPT settings if required.
 
+### Local data and GitHub distribution
+
+GitHub distributes the application source, assets and dependency lockfile. Each installation creates its own SQLite database automatically on first use; no database, saved conversations, generated outputs or personal connection configuration is shipped. The default database is `agentsim.db`; `AGENTSIM_DB` can select another local SQLite file. Database files and their journal/WAL files are ignored by Git.
+
+Configure your own ChatGPT/OpenAI connection locally after cloning. Credentials, OAuth sessions, native image runtime state and generated artifacts remain under ignored `.local/`. Environment files, common credential filenames and private key files are also ignored. Never add real secrets to source code or examples, or force-add ignored local files. Publishing this repository does not publish a running service or share the owner's account: the application listens only on `127.0.0.1`.
+
 ## Connect external MCP servers
 
 MCP Connections → Add HTTP connection → enter the **Streamable HTTP** endpoint and optional Bearer/custom-header credential → Save → Discover tools → assign specific tools in each agent's MCPs tab.

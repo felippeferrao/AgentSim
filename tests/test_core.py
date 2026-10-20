@@ -11,6 +11,20 @@ from runtime import ResponsesLLM, calculate, execute, mcp_call
 
 
 class CoreTests(unittest.TestCase):
+    def test_new_installation_creates_empty_database_without_credentials(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "fresh.sqlite3"
+            credentials = Path(directory) / "credentials"
+            with patch.object(server, "DB", database), patch.object(auth, "LOCAL", credentials):
+                self.assertFalse(database.exists())
+                state = server.read()
+                self.assertTrue(database.is_file())
+                self.assertEqual(state["agents"], [])
+                self.assertEqual(state["teams"], [])
+                self.assertEqual(state["runs"], [])
+                self.assertEqual(server.execution_history(), [])
+                self.assertFalse(credentials.exists())
+
     def test_import_rejects_unknown_permissions_and_code(self):
         s = server.initial()
         s["agents"][0]["mcp"] = ["documents:delete"]

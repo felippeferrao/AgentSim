@@ -117,3 +117,10 @@ Sidebar/card revision regression check: all 30 tests passed in 8.201 seconds.
 Removed the three onboarding steps, the sidebar Connection setup button and the local-data/AI-connection note exactly as requested. The sidebar welcome card retains its approved robot and title, with navigation underneath. Removed the deleted button's JavaScript binding to prevent initialization errors. Account settings remain available in the header.
 
 Verified in the existing user tab after reload: removed copy/button absent, robot/title present, navigation and Architecture still render. JavaScript syntax and diff whitespace checks pass.
+
+
+## GitHub publication and local-only state — 2026-10-20
+
+Audited all 184 reachable historical Git blobs before this change for OpenAI key patterns and exact credential values from AgentSim's local credential JSON files: no matches. No credential files or SQLite databases are tracked. Existing personal credentials and database remain local so the running installation keeps working. Expanded Git exclusions cover environment variants, common credential JSON names, private key files and SQLite database/journal/WAL variants.
+
+A fresh-install regression check starts with a nonexistent database, creates it through the normal application read path, verifies empty agents/teams/runs/history and verifies no credential directory is created. GitHub distributes source only; execution remains loopback-only and every clone must configure its own account locally.
