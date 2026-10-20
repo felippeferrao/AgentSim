@@ -1,33 +1,47 @@
-2026-10-20 — local verification
+2026-10-20 — continuation verification
 Python 3.12.9; macOS Apple Silicon
 
 PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -v
-Ran 10 tests in 1.803s — OK
+Ran 27 tests in 7.030s — OK
 
-Coverage exercised:
-- Actual CrewAI tasks with scripted provider, real calculator and real MCP search
-- Deterministic Demo; no real usage assigned to samples
-- Setup import validation and broken member/unknown permission rejection
-- Calculator AST rejects executable expressions
-- Actual MCP stdio initialize/discovery/read
-- OAuth PKCE/state/host identity/one-time callback and file permissions
-- Signed OAuth ID-token/client validation using ephemeral test keys
-- Plain skill import does not grant tool dependencies
-- Local Responses SSE fixture requires stream=true/store=false and maps usage
+Actual transport and framework evidence:
+- Authenticated MCP Streamable HTTP server in a separate controlled process.
+- Bearer and X-API-Key discovery, initialize, tools/list, actual tools/call.
+- Granular grants, nested schema validation, optional arguments, changed
+  connection/tool revisions and edit/remove revocation.
+- HTTP connection management round-trip; credentials absent from responses.
+- Actual CrewAI calls the controlled HTTP MCP tool using a scripted LLM.
+- Actual app HTTP API + actual CrewAI + controlled Responses SSE endpoint +
+  application SSE progress + persisted final results, automatically.
+- Two model names remain distinct through actual provider fixture requests.
+- Runtime mapping test preserves different ChatGPT/API selections per agent.
 
-uvx ruff check server.py runtime.py auth.py mcp_documents.py tests
+Contract/data evidence:
+- Rich profile migration persists to SQLite and preserves existing permissions.
+- Expanded role/goal/context/instructions/examples/expected output map to CrewAI.
+- Advanced behavior settings, optional model parameters and avatars round-trip.
+- Empty startup and explicit non-destructive example loading.
+- Signed JWT fixture, PKCE/state/host isolation and incomplete registration retry.
+- A saved credential is not treated as valid without provider verification.
+- Failed real preflight creates no sample run.
+- Declarative imports, skill dependency restrictions, arithmetic and stdio MCP.
+
+Browser evidence:
+- Disconnected Home automatically opens Connection setup.
+- Home shows six explanatory dashboard cards and SQLite/example status.
+- Agents retains Import setup / Export setup.
+- Four actual tab panels; Profile is hidden when Tools is selected.
+- Unsaved tool selections survive tab switches. Avatar choices are available.
+- Watch & run defaults to real automatic mode; no Next control in real mode.
+- Screenshots captured under KnowledgeBase/design/.
+
+uvx ruff check auth.py server.py runtime.py profiles.py external_mcp.py tests
 All checks passed!
 node --check static/app.js — passed
 git diff --check — passed
 
-HTTP app checks: create/read/update/delete, granular grants, invalid setup and
-cross-origin write rejection, actual MCP discovery passed.
-
-Browser checks: agent assignments saved; team demo started; Next step advanced;
-one-agent demo started; comparison displayed 3-helper versus 1-helper samples.
-Desktop/mobile screenshots inspected. No runtime console errors on final app load.
-Initial missing favicon was corrected.
-
-Live OpenAI authorization probe and browser navigation: HTTP 403 challenge,
-page title “Um momento…”. No consent or tokens obtained.
-No live external inference is claimed. Scripted/fixture tests are not live AI.
+Important evidence boundary:
+Controlled/scripted LLM responses and fixture token counts are NOT live AI.
+The existing OpenAI browser authorization attempt returned HTTP 403 before
+consent. No live OAuth token exchange or external AI inference was completed.
+No Brain Mentoria AI credential or Cortex/Codex token was used.

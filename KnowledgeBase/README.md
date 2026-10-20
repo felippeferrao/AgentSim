@@ -8,3 +8,6 @@ This folder is the source of project requirements and delivery truth. It is not 
 - [Verified status and next steps](STATUS.md)
 - [Working instructions](INSTRUCTIONS.md)
 - [Approved visual reference](design/approved-reference.png)
+- [Expanded agent profiles and framework mapping](AGENT_PROFILES.md)
+- [External HTTP MCP connections](EXTERNAL_MCP.md)
+- [OAuth configuration review and human verification](OAUTH_REVIEW.md)

@@ -188,6 +188,7 @@ jsonref==1.1.0
     # via crewai
 jsonschema==4.26.0
     # via
+    #   -r requirements.txt
     #   chromadb
     #   litellm
     #   mcp

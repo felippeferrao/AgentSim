@@ -1,0 +1,167 @@
+"""Live local HTTP/SSE integration, with a controlled Responses fixture only."""
+
+import json
+import tempfile
+import threading
+import time
+import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from unittest.mock import patch
+
+import httpx
+
+import auth
+import profiles
+import server
+
+
+class AppTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.path = Path(self.temp.name)
+        self.patches = [
+            patch.object(auth, "LOCAL", self.path / "private"),
+            patch.object(server, "DB", self.path / "state.db"),
+            patch.object(server, "JOBS", {}),
+        ]
+        for p in self.patches:
+            p.start()
+        captured = []
+
+        class Fixture(BaseHTTPRequestHandler):
+            def do_GET(self):
+                raw = json.dumps({"data": [{"id": "model-alpha"}, {"id": "model-beta"}]}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                captured.append(body)
+                time.sleep(0.15)
+                data = {
+                    "type": "response.completed",
+                    "response": {
+                        "id": "fixture",
+                        "object": "response",
+                        "created_at": 1,
+                        "status": "completed",
+                        "model": body["model"],
+                        "output": [
+                            {
+                                "id": "message",
+                                "type": "message",
+                                "role": "assistant",
+                                "status": "completed",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": "Final Answer: Controlled answer from "
+                                        + body["model"],
+                                        "annotations": [],
+                                    }
+                                ],
+                            }
+                        ],
+                        "usage": {"input_tokens": 17, "output_tokens": 6, "total_tokens": 23},
+                    },
+                }
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.end_headers()
+                self.wfile.write(("data: " + json.dumps(data) + "\n\n").encode())
+
+            def log_message(self, *args):
+                pass
+
+        self.provider = ThreadingHTTPServer(("127.0.0.1", 0), Fixture)
+        self.app = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        for service in [self.provider, self.app]:
+            threading.Thread(target=service.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.app.server_port}/api/"
+        self.captured = captured
+
+    def tearDown(self):
+        for service in [self.app, self.provider]:
+            service.shutdown()
+            service.server_close()
+        for p in reversed(self.patches):
+            p.stop()
+        self.temp.cleanup()
+
+    def post(self, path, body):
+        return httpx.post(self.base + path, json=body, timeout=20)
+
+    def configured_state(self):
+        state = server.initial()
+        state["teams"][0]["agents"] = state["teams"][0]["agents"][:2]
+        for i, a in enumerate(state["agents"]):
+            a.update(profiles.normalize(a))
+            a["model"].update(
+                mode="custom",
+                connection="api",
+                name=["model-alpha", "model-beta", "model-alpha"][i],
+            )
+        return state
+
+    def test_disconnected_backend_blocks_real_run_without_creating_sample(self):
+        state = self.configured_state()
+        server.save(state)
+        self.assertFalse(httpx.get(self.base + "connection/status").json()["ready"])
+        response = self.post("real-run", {"goal": "Test", "team": "research"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not verified", response.json()["error"])
+        self.assertEqual(server.read()["runs"], [])
+
+    def test_automatic_sse_two_models_and_round_trip(self):
+        state = self.configured_state()
+        state["agents"][0]["model"].update(temperature=0.3, maxOutputTokens=120)
+        self.assertEqual(self.post("state", state).status_code, 200)
+        persisted = httpx.get(self.base + "state").json()
+        self.assertEqual(persisted["agents"][0]["model"]["name"], "model-alpha")
+        self.post(
+            "settings",
+            {
+                "provider": "api",
+                "api_key": "fixture-only-key",
+                "base_url": f"http://127.0.0.1:{self.provider.server_port}/v1",
+            },
+        )
+        self.assertTrue(httpx.get(self.base + "connection/status").json()["api"]["valid"])
+        ident = self.post(
+            "real-run", {"goal": "Plan a picnic", "team": "research", "mode": "team"}
+        ).json()["id"]
+        snapshots = []
+        with httpx.stream("GET", self.base + "jobs/" + ident + "/events", timeout=30) as stream:
+            self.assertEqual(stream.headers["Content-Type"], "text/event-stream")
+            for line in stream.iter_lines():
+                if line.startswith("data: "):
+                    snapshots.append(json.loads(line[6:]))
+        self.assertEqual(snapshots[-1]["status"], "completed")
+        run = snapshots[-1]["run"]
+        self.assertEqual([s["model"] for s in run["steps"]], ["model-alpha", "model-beta"])
+        self.assertEqual([c["model"] for c in self.captured], ["model-alpha", "model-beta"])
+        self.assertEqual(self.captured[0]["temperature"], 0.3)
+        self.assertEqual(self.captured[0]["max_output_tokens"], 120)
+        self.assertNotIn("temperature", self.captured[1])
+        self.assertFalse(self.captured[0]["store"])
+        self.assertTrue(self.captured[0]["stream"])
+        self.assertEqual(run["steps"][0]["inputTokens"], 17)
+        self.assertEqual(len([e for e in run["events"] if e["type"] == "step_completed"]), 2)
+        self.assertEqual(server.read()["runs"][-1]["id"], ident)
+        self.assertNotIn("fixture-only-key", json.dumps(snapshots))
+        self.assertNotIn("sample", run["steps"][0]["output"].lower())
+
+    def test_explicit_examples_and_import_export_shape(self):
+        self.assertEqual(httpx.get(self.base + "state").json()["agents"], [])
+        response = self.post("examples", {})
+        self.assertEqual(response.status_code, 200)
+        state = response.json()
+        self.assertEqual(len(state["agents"]), 3)
+        self.assertTrue(all(a["example"] for a in state["agents"]))
+        self.assertIn("model", state["agents"][0])
+        self.assertEqual(self.post("state", state).status_code, 200)
+        self.assertEqual(len(self.post("examples", {}).json()["agents"]), 3)

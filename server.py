@@ -1,4 +1,4 @@
-"""AgentSim: local teaching app. No external inference or code execution."""
+"""WABIX AgentSim: real CrewAI execution, explicit connections and optional teaching samples."""
 
 import json
 import os
@@ -11,6 +11,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import auth
+import external_mcp
+import profiles
 
 LOCK = threading.RLock()
 JOBS = {}
@@ -69,20 +71,102 @@ def initial():
                 "agents": ["researcher", "writer", "reviewer"],
             }
         ],
-        "catalog": CATALOG,
+        "catalog": __import__("copy").deepcopy(CATALOG),
         "runs": [],
     }
+
+
+def blank():
+    state = initial()
+    state["agents"] = []
+    state["teams"] = []
+    return state
+
+
+def load_examples(state):
+    if any(a.get("example") for a in state["agents"]):
+        return state
+    mapping = {}
+    for a in initial()["agents"]:
+        a["id"] = "example-" + a["id"] + "-" + uuid.uuid4().hex[:6]
+        a["example"] = True
+        mapping[a["name"].lower()] = a["id"]
+        state["agents"].append(a)
+    state["teams"].append(
+        {
+            "id": "example-team-" + uuid.uuid4().hex[:6],
+            "name": "Example research team",
+            "agents": list(mapping.values()),
+            "example": True,
+        }
+    )
+    return state
 
 
 def read():
     with connect() as db:
         row = db.execute("SELECT data FROM state WHERE id=1").fetchone()
-    return json.loads(row[0]) if row else initial()
+    state = json.loads(row[0]) if row else blank()
+    before_migration = __import__("copy").deepcopy(state)
+    # Migration labels the original bundled configurations; never resets user data.
+    defaults = {a["id"]: a for a in initial()["agents"]}
+    for a in state["agents"]:
+        original = defaults.get(a["id"])
+        if (
+            "example" not in a
+            and original
+            and a["name"] == original["name"]
+            and a["job"] == original["job"]
+        ):
+            a["example"] = True
+    for team in state["teams"]:
+        if (
+            "example" not in team
+            and team["id"] == "research"
+            and team["name"] == "Research helpers"
+            and team["agents"]
+            and all(
+                next((a.get("example", False) for a in state["agents"] if a["id"] == ident), False)
+                for ident in team["agents"]
+            )
+        ):
+            team["example"] = True
+    state["agents"] = [profiles.validate(a) for a in state["agents"]]
+    for a in state["agents"]:
+        if a["model"]["mode"] == "inherit":
+            old = auth.settings()
+            a["model"]["mode"] = "custom"
+            a["model"]["name"] = old.get("model", "")
+            a["model"]["connection"] = (
+                old.get("provider") if old.get("provider") in ("chatgpt", "api") else "chatgpt"
+            )
+    if row and state != before_migration:
+        save(state)
+    state["catalog"]["mcp"] = CATALOG["mcp"] + external_mcp.connections()
+    allowed = {m["id"] + ":" + t["id"] for m in state["catalog"]["mcp"] for t in m["tools"]}
+    for agent in state["agents"]:
+        agent["mcp"] = [g for g in agent["mcp"] if g in allowed]
+    return state
 
 
 def save(s):
     with connect() as db:
         db.execute("INSERT OR REPLACE INTO state VALUES (1,?)", (json.dumps(s),))
+
+
+def mcp_identity(records):
+    def clean(value):
+        if isinstance(value, dict):
+            return {
+                k: clean(v)
+                for k, v in value.items()
+                if k not in {"status", "hasCredential", "revision", "connectionRevision"}
+            }
+        if isinstance(value, list):
+            return [clean(v) for v in value]
+        return value
+
+    return clean(records)
 
 
 def validate(s):
@@ -102,15 +186,14 @@ def validate(s):
                 or not 0 < len(a["name"]) <= 80
             ):
                 raise ValueError("Each item needs an id and a name (1–80 letters).")
+            if "example" in a and not isinstance(a["example"], bool):
+                raise ValueError("Example marker must be true or false.")
             ids.append(a["id"])
             if kind == "agents":
-                if (
-                    set(a) != {"id", "name", "job", "tools", "skills", "mcp"}
-                    or not isinstance(a["job"], str)
-                    or len(a["job"]) > 500
-                ):
-                    raise ValueError("Invalid agent fields.")
-            elif set(a) != {"id", "name", "agents"}:
+                if not {"id", "name", "job", "tools", "skills", "mcp"} <= set(a):
+                    raise ValueError("Missing agent fields.")
+                a.update(profiles.validate(a))
+            elif set(a) - {"example"} != {"id", "name", "agents"}:
                 raise ValueError("Invalid team fields.")
         if len(set(ids)) != len(ids):
             raise ValueError("Duplicate ids.")
@@ -119,9 +202,12 @@ def validate(s):
         not isinstance(catalog, dict)
         or set(catalog) != {"tools", "skills", "mcp"}
         or catalog["tools"] != CATALOG["tools"]
-        or catalog["mcp"] != CATALOG["mcp"]
+        or mcp_identity(catalog["mcp"]) != mcp_identity(CATALOG["mcp"] + external_mcp.connections())
     ):
-        raise ValueError("Only built-in tools and MCP connections are allowed in this version.")
+        raise ValueError(
+            "Imports cannot add or change MCP connections. Register them in MCP Connections first."
+        )
+    catalog["mcp"] = CATALOG["mcp"] + external_mcp.connections()
     if not isinstance(catalog["skills"], list) or len(catalog["skills"]) > 30:
         raise ValueError("Use at most 30 skills.")
     skill_ids = []
@@ -145,7 +231,12 @@ def validate(s):
         if not __import__("re").fullmatch(r"[a-z0-9-]+", skill["id"]):
             raise ValueError("Skill id uses lowercase letters, numbers and hyphens.")
         if not isinstance(skill["requires"], list) or any(
-            x not in ["calculator", "documents:search", "documents:read"] for x in skill["requires"]
+            not isinstance(x, str)
+            or (
+                x != "calculator"
+                and not __import__("re").fullmatch(r"[a-z0-9-]+:[A-Za-z0-9_.-]{1,128}", x)
+            )
+            for x in skill["requires"]
         ):
             raise ValueError("Unknown skill dependency.")
         skill_ids.append(skill["id"])
@@ -155,7 +246,7 @@ def validate(s):
         for k, allowed in [
             ("tools", ["calculator"]),
             ("skills", skill_ids),
-            ("mcp", ["documents:search", "documents:read"]),
+            ("mcp", [m["id"] + ":" + t["id"] for m in catalog["mcp"] for t in m["tools"]]),
         ]:
             if not isinstance(a[k], list) or any(v not in allowed for v in a[k]):
                 raise ValueError("Unknown assignment.")
@@ -193,6 +284,7 @@ def make_run(s, body):
             {
                 "agent": a["name"],
                 "agentId": a["id"],
+                "avatar": profiles.normalize(a)["avatar"],
                 "input": previous,
                 "output": output,
                 "why": f"Teaching explanation: this helper has the job “{a['job']}”. Passing its result to the next helper shows teamwork.",
@@ -231,7 +323,7 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/auth/callback":
             try:
                 auth.callback({k: v[0] for k, v in parse_qs(url.query).items()})
-                message = "Signed in. Return to AgentSim and choose your model in Connection setup."
+                message = "Signed in. Return to AgentSim and choose each helper’s model in Agents → Profile."
             except Exception as e:
                 message = (
                     str(e)
@@ -248,15 +340,40 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return
+        if url.path.startswith("/api/jobs/") and url.path.endswith("/events"):
+            ident = url.path.split("/")[-2]
+            if ident not in JOBS:
+                return self.reply({"error": "Run not found"}, 404)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            last = None
+            try:
+                while True:
+                    job = JOBS[ident]
+                    signature = (job["status"], len(job["events"]))
+                    if signature != last:
+                        self.wfile.write(("data: " + json.dumps(job) + "\n\n").encode())
+                        self.wfile.flush()
+                        last = signature
+                    if job["status"] != "running":
+                        return
+                    time.sleep(0.25)
+            except (BrokenPipeError, ConnectionResetError):
+                return
         if url.path.startswith("/api/jobs/"):
             job = JOBS.get(url.path.rsplit("/", 1)[-1])
             return self.reply(job or {"error": "Run not found"}, 200 if job else 404)
+        if self.path == "/api/connection/status":
+            return self.reply(auth.connection_status())
         if self.path == "/api/settings":
             return self.reply(auth.public_settings())
         if self.path == "/api/state":
             return self.reply(read())
         if self.path == "/api/connection":
-            return self.reply(auth.public_settings())
+            return self.reply(auth.connection_status())
         path = ROOT / "static" / ("index.html" if self.path == "/" else self.path.lstrip("/"))
         if path.parent != ROOT / "static" or not path.is_file():
             return self.reply({"error": "Not found"}, 404)
@@ -289,10 +406,16 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise ValueError("Expected a JSON object.")
             s = read()
+            if self.path == "/api/examples":
+                with LOCK:
+                    s = load_examples(read())
+                    save(s)
+                return self.reply(read())
             if self.path == "/api/oauth/start":
                 return self.reply({"url": auth.start(self.server.server_port)})
             if self.path == "/api/oauth/logout":
                 auth.store("oauth", {})
+                auth.store("registration", {})
                 return self.reply({"ok": True})
             if self.path == "/api/settings":
                 if body.get("provider") not in ["demo", "chatgpt", "api"]:
@@ -317,7 +440,7 @@ class Handler(BaseHTTPRequestHandler):
                     "provider",
                     {
                         "provider": body["provider"],
-                        "model": model,
+                        "model": "",
                         "base_url": base,
                         "api_key": body.get("api_key") or old.get("api_key", ""),
                     },
@@ -327,14 +450,11 @@ class Handler(BaseHTTPRequestHandler):
                 import httpx
 
                 conf = auth.settings()
-                key = auth.access() if conf["provider"] == "chatgpt" else conf.get("api_key")
+                connection = body.get("connection", conf["provider"])
+                key = auth.access() if connection == "chatgpt" else conf.get("api_key")
                 if not key:
                     raise ValueError("Connect your own account first.")
-                base = (
-                    "https://api.openai.com/v1"
-                    if conf["provider"] == "chatgpt"
-                    else conf["base_url"]
-                )
+                base = "https://api.openai.com/v1" if connection == "chatgpt" else conf["base_url"]
                 response = httpx.get(
                     base + "/models",
                     headers={"Authorization": "Bearer " + key},
@@ -349,10 +469,42 @@ class Handler(BaseHTTPRequestHandler):
                         for m in data.get("models", [])
                         if m.get("visibility") == "list"
                     ]
-                    if conf["provider"] == "chatgpt"
+                    if connection == "chatgpt"
                     else [{"id": m["id"], "name": m["id"]} for m in data.get("data", [])]
                 )
                 return self.reply({"models": models})
+            if self.path in ("/api/mcp/save", "/api/mcp/remove", "/api/mcp/discover"):
+                import asyncio
+
+                ident = body.get("id")
+                before = next((c for c in external_mcp.connections() if c["id"] == ident), None)
+                if self.path.endswith("/save"):
+                    external_mcp.save_connection(body)
+                elif self.path.endswith("/remove"):
+                    external_mcp.remove(ident)
+                else:
+                    external_mcp_result = asyncio.run(external_mcp.discover(ident))
+                    # Any changed schema/description revokes that grant on all agents.
+                    old_tools = {t["id"]: t for t in (before or {}).get("tools", [])}
+                    changed = {
+                        t["id"] for t in external_mcp_result["tools"] if t != old_tools.get(t["id"])
+                    }
+                    for agent in s["agents"]:
+                        agent["mcp"] = [
+                            g
+                            for g in agent["mcp"]
+                            if g not in {ident + ":" + name for name in changed}
+                        ]
+                with LOCK:
+                    s["catalog"]["mcp"] = CATALOG["mcp"] + external_mcp.connections()
+                    allowed = {
+                        c["id"] + ":" + t["id"] for c in s["catalog"]["mcp"] for t in c["tools"]
+                    }
+                    for agent in s["agents"]:
+                        agent["mcp"] = [g for g in agent["mcp"] if g in allowed]
+                    s["runs"] = read()["runs"]
+                    save(s)
+                return self.reply(s)
             if self.path == "/api/mcp/check":
                 import asyncio
 
@@ -364,6 +516,25 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Wait for the current run to finish.")
                 # Validate goal and membership before starting a background worker.
                 make_run(s, body)
+                selected_team = next(t for t in s["teams"] if t["id"] == body["team"])
+                selected_ids = (
+                    selected_team["agents"][:1]
+                    if body.get("mode") == "one"
+                    else selected_team["agents"]
+                )
+                selected_agents = [
+                    next(a for a in s["agents"] if a["id"] == ident) for ident in selected_ids
+                ]
+                for agent in selected_agents:
+                    if not agent["model"]["name"]:
+                        raise ValueError(agent["name"] + ": select a model in Profile first.")
+                status = auth.connection_status()
+                for agent in selected_agents:
+                    if not status[agent["model"]["connection"]]["valid"]:
+                        raise ValueError(
+                            agent["name"]
+                            + ": account access is not verified. Open Connection setup."
+                        )
                 run_config = auth.settings()
                 job_id = str(uuid.uuid4())
                 JOBS[job_id] = {
@@ -388,8 +559,8 @@ class Handler(BaseHTTPRequestHandler):
                             "goal": body["goal"],
                             "mode": body.get("mode", "team"),
                             "team": next(t["name"] for t in s["teams"] if t["id"] == body["team"]),
-                            "provider": run_config["provider"],
-                            "model": run_config["model"],
+                            "provider": "real",
+                            "models": [a["model"] for a in selected_agents],
                             "steps": steps,
                             "completed": True,
                             "events": job["events"],
@@ -440,5 +611,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print("AgentSim: http://127.0.0.1:8080 (Demo + real CrewAI)", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", int(os.environ.get("PORT", "8080"))), Handler).serve_forever()
+    port = int(os.environ.get("PORT", "8080"))
+    print(f"WABIX AgentSim: http://127.0.0.1:{port} (real AI workspace)", flush=True)
+    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

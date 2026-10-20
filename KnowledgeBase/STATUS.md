@@ -1,38 +1,37 @@
-# Delivery status — 2026-10-20
+# Delivery status — 2026-10-20, continued implementation
 
-## Implemented
+## Implemented and verified
 
-- WABIX AgentSim UI with approved mascot/helper artwork, official WABIX logo, light/navy palette and teal/orange/purple accents. Desktop composition preserved; smaller screens stack panels/cards.
-- Persistent agent/team create, read, update and delete; explicit tool/skill/MCP grants, individual MCP tool selection. SQLite stores configuration and completed run history.
-- Declarative setup import/export and skill JSON import with server-side validation. Skill instructions applied to real agent/task prompts. Missing dependencies fail rather than granting tools.
-- Deterministic guided Demo, step inspector, timeline, sample counts and saved-run comparison for one helper versus a team.
-- Actual CrewAI 1.15.28 sequential Agent/Task/Crew implementation, automatic real execution, background step/tool/usage events and completed-output persistence. Responses streaming adapter with terminal-event checks and provider-only usage counts.
-- Restricted real arithmetic tool and actual MCP stdio documents server with discovery/search/read. No arbitrary plugin execution.
-- Own dynamic ChatGPT OAuth authorization, callback exchange, signed ID-token validation, scope checks, refresh and protected local persistence. Model listing and explicit alternative API provider configuration. No reuse of Cortex/Codex credentials.
+- **Home is a dashboard**, with Agents, Teams, Tools, Skills, MCP Connections and Watch & run cards, counts, a short explanation and next steps. The approved team visualization now lives in Watch & run. Existing layout, art, mascot, WABIX logo and palette are preserved.
+- **Real AI is the primary flow.** Disconnected Home automatically opens Connection setup. Backend provider access checks are required; stored keys/tokens do not imply a successful connection. A failed real run cannot fall back to samples.
+- **Automatic execution via server-sent events.** No Next clicks are required for real AI. The explicit educational sample option retains its separate deterministic lesson and clearly labeled sample counts.
+- **Four actual agent-editor tabs:** Profile, Tools, Skills, MCPs. Profile includes role, goal, context, instructions, purpose, expected result, delimited examples, per-agent model/connection and actual CrewAI behavior settings. [Runtime mapping](AGENT_PROFILES.md).
+- **Per-agent model selection** with a separate LLM adapter per helper. Heterogeneous ChatGPT/API connections and different model names are respected; global connection settings do not override agent models. Optional unsupported model parameters produce errors, never silent substitution.
+- **Selectable approved avatars** (Researcher, Writer, Reviewer, Robot) persist and render in editor, catalog and execution cards. No new unseen character asset is claimed.
+- **Persistent migration**, preserving ids, jobs→goals, team membership, existing permissions and saved runs. SQLite remains the data store. New installations are empty; examples load only after an explicit action and merge without overwriting own helpers. Original bundled configs are labeled examples.
+- **External HTTP MCP management:** create/edit/remove connection, Bearer or custom-header credential, initialize and paginated tools/list, individual tool grants per agent, real schema-validated tools/call through CrewAI. Edits, changed tool definitions and removals revoke affected permissions. [Behavior and security boundaries](EXTERNAL_MCP.md).
+- Import setup / Export setup retained; declarative skill import retained. Imported MCP metadata cannot register new servers or override registered endpoints. Credentials remain local and outside logs/Git/exports.
 
-## Verified evidence
+## Verification evidence
 
-- **10 automated tests pass** on Python 3.12.9, macOS Apple Silicon. [Test record](evidence/verification.txt).
-- Real CrewAI is invoked in the tests, with a scripted provider. Three tasks pass outputs sequentially; calculator and documents-search are actually executed by CrewAI. Skill instructions are present. **The provider is scripted in this test; this is not external inference.**
-- MCP initialize/list_tools/read/search tested through real subprocess pipes. The web endpoint also completed actual MCP discovery.
-- Local HTTP/SSE fixture validates outgoing Responses store=false/stream=true, successful terminal-event handling and provider usage mapping. Fixture counts are not live provider counts.
-- OAuth fixture signs an ID token using a freshly generated RSA key and verifies identity, audience/client binding and protected persistence. State, PKCE, stable independent host id, denial and one-time callback rejection are tested. This is a contract/security test, not a live OpenAI token exchange.
-- Actual HTTP create/read/update/delete of agent/team setup, explicit granular assignments, invalid-import rejection and cross-origin write rejection passed.
-- Browser: Home loads; agent tool/skill/MCP checkboxes save; Team Demo starts and Next step advances; One agent starts; Compare runs shows separate saved results. Desktop screenshot inspected. Mobile layout inspected and adjusted to stack cards and expose connection settings in the header.
-- JavaScript syntax check, Ruff lint and Git whitespace checks pass.
-- [Desktop screenshot](design/implemented-desktop.png), [mobile screenshot](design/implemented-mobile.png). These screenshots deliberately show **Demo/sample** mode.
+**27 automated tests passed** (final run: 7.030 seconds). Tests distinguish three evidence categories:
 
-## External access limit — do not overstate
+1. **Real MCP transport:** separate authenticated Streamable HTTP server process with a generated fixture credential; Bearer and custom-header discovery, actual tool calls, optional/nested schema handling, denied grants, changed revisions, edit/remove revocation and HTTP API management round-trip. Actual CrewAI calls an external fixture MCP tool using a scripted LLM. No Brain Mentoria AI credential was used.
+2. **Real application and framework path with a controlled provider:** HTTP configuration → backend access check → actual CrewAI tasks → local Responses SSE endpoint → application SSE events → persisted results. Two agents select model-alpha and model-beta; requests preserve those model choices. Completion occurs without Next actions. Fixture usage values remain test data, not live external usage.
+3. **Contract/data/UI checks:** signed OAuth identity validation, PKCE/state isolation, incomplete registration retention, profile migration/round-trip, framework field mapping, per-agent ChatGPT/API selection, declarative import/permission restrictions, arithmetic restrictions and builtin MCP stdio. Browser checks confirm disconnected setup modal, dashboard navigation, four separate tab panels and unsaved selections surviving tab switches. Screenshots are under design/.
 
-The official OpenAI authorization URL was generated using AgentSim's own host identity and opened in the automated browser. `auth.openai.com/api/accounts/authorize` returned **HTTP 403**, page title “Um momento…”, before a sign-in or consent screen. The plain HTTP probe returned the same status. No challenge bypass was attempted.
+Python 3.12.9, macOS Apple Silicon. Ruff and JavaScript syntax checks pass. [Evidence record](evidence/verification.txt).
 
-No AgentSim OAuth token has been issued. No human consent, live token exchange, refresh, model list or **external AI inference** has been confirmed. No AgentSim API key was supplied. A local Ollama endpoint on 127.0.0.1:11434 was not running. The application never substituted Demo for a failed real request. An actual successful OAuth/API → Responses → CrewAI run is still required before calling the complete external integration verified.
+## OAuth and external inference boundary
+
+Reviewed the official request contract again. Fixed the invalid_grant retry edge case so an issued client id is retained as an **incomplete registration**, without claiming connection. No configuration error was found that establishes the cause of the previously observed HTTP 403 browser challenge. [Review and human verification steps](OAUTH_REVIEW.md).
+
+The automated browser received HTTP 403 before consent. No actual OpenAI consent, token exchange, refresh, account model listing or external AI inference has been completed. No own API credential was supplied. Controlled/scripted tests do not change that status. The application has no valid account at delivery and correctly requires a connection for real execution.
 
 ## Remaining work
 
-1. User opens Connection setup → Continue with ChatGPT in their regular browser, passes the provider challenge and grants plan use. Then select ChatGPT, load an eligible model and run a small goal. This is the immediate next verification; do not ask for secrets in chat.
-2. If preferred, the user can explicitly choose API provider and enter their own compatible provider key locally. Verify one agent and a three-agent team with real provider outputs/usage and actual selected tools.
-3. General external HTTP/SSE MCP connection CRUD, authentication/discovery and custom tool packages are not implemented; current MCP catalog is the real bundled documents server. Multiple ChatGPT accounts/workspaces, Chat Completions-only providers, encrypted credential vault, durable background jobs, cancellation, public multi-user hosting and reconnect/resume are future work.
-4. The initial UI is a working browser implementation, not a pixel-by-pixel screenshot renderer. Preserve the approved composition in further refinements.
+- Human sign-in in a regular browser and a live one-helper/team run with the actual authorized account; verify provider usage and selected real tools. Alternatively, deliberately configure a compatible API provider locally and choose each agent's model.
+- Legacy HTTP+SSE MCP transport and remote MCP OAuth, multiple ChatGPT registrations / multiple API credential profiles, arbitrary executable plugins, an encrypted vault, cancellation, durable in-flight recovery and public multi-user hosting are not implemented.
+- Completed runs persist. A server restart interrupts in-flight work. Local credential protection uses OS permissions, not encryption.
 
-No public deployment was performed. Commit/push evidence is reported in the delivery message and Git history.
+No public deployment. Commits and push are reported in the delivery message and repository history.

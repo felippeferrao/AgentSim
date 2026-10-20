@@ -123,6 +123,28 @@ class CoreTests(unittest.TestCase):
                     }
                 )
 
+    def test_incomplete_oauth_registration_retry_is_not_a_connection(self):
+        from types import SimpleNamespace
+        from urllib.parse import parse_qs, urlparse
+
+        with tempfile.TemporaryDirectory() as d, patch.object(auth, "LOCAL", Path(d)):
+            q = parse_qs(urlparse(auth.start(8080)).query)
+            failure = SimpleNamespace(status_code=400, json=lambda: {"error": "invalid_grant"})
+            with patch("auth.httpx.post", return_value=failure):
+                with self.assertRaisesRegex(ValueError, "retained"):
+                    auth.callback(
+                        {
+                            "state": q["state"][0],
+                            "code": "fixture",
+                            "client_id": "oaiapp_incomplete_fixture",
+                        }
+                    )
+            retry = parse_qs(urlparse(auth.start(8080)).query)
+            self.assertEqual(retry["client_id"], ["oaiapp_incomplete_fixture"])
+            self.assertNotIn("agent_name_hint", retry)
+            self.assertFalse(auth.public_settings()["oauth_connected"])
+            self.assertFalse(auth.connection_status()["ready"])
+
     def test_skill_import_is_declarative_and_never_grants_tools(self):
         s = copy.deepcopy(server.initial())
         skill = {
@@ -134,6 +156,15 @@ class CoreTests(unittest.TestCase):
         }
         s["catalog"]["skills"].append(skill)
         s["agents"][0]["skills"] = ["budget"]
+        for helper in s["agents"]:
+            helper["model"] = {
+                "mode": "custom",
+                "name": "fixture",
+                "connection": "api",
+                "temperature": None,
+                "maxOutputTokens": None,
+                "contextWindow": 32000,
+            }
         server.validate(s)
         self.assertEqual(s["agents"][0]["tools"], [])
         with patch(
@@ -149,6 +180,15 @@ class CoreTests(unittest.TestCase):
     def test_actual_crewai_tasks_with_scripted_provider(self):
         # Integration test of real CrewAI; scripted LLM is NOT external inference.
         state = server.initial()
+        for helper in state["agents"]:
+            helper["model"] = {
+                "mode": "custom",
+                "name": "fixture",
+                "connection": "api",
+                "temperature": None,
+                "maxOutputTokens": None,
+                "contextWindow": 32000,
+            }
         state["agents"][0]["tools"] = ["calculator"]
         state["agents"][0]["mcp"] = ["documents:search"]
         state["agents"][0]["skills"] = ["clear-writing"]

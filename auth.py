@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import secrets
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -15,6 +16,7 @@ import jwt
 
 LOCAL = Path(__file__).parent / ".local"
 PENDING = {}
+TOKEN_LOCK = threading.RLock()
 AUTH = "https://auth.openai.com"
 RESOURCE = "https://api.openai.com/v1"
 
@@ -44,7 +46,7 @@ def start(port):
     verifier = secrets.token_urlsafe(64)
     nonce = secrets.token_urlsafe(32)
     redirect = f"http://127.0.0.1:{port}/auth/callback"
-    client = old.get("client_id", "dynamic_agent_client")
+    client = old.get("client_id") or load("registration").get("client_id") or "dynamic_agent_client"
     PENDING.clear()
     PENDING[state] = {
         "verifier": verifier,
@@ -99,7 +101,16 @@ def callback(q):
         timeout=30,
     )
     if r.status_code != 200:
-        raise ValueError("Code exchange failed. Start sign-in again.")
+        try:
+            error = r.json().get("error")
+        except ValueError:
+            error = None
+        if error == "invalid_grant":
+            store("registration", {"client_id": client})
+            raise ValueError(
+                "The authorization code expired or could not be used. Start sign-in again; the issued registration is retained."
+            )
+        raise ValueError("Code exchange failed. No connection was confirmed. Start sign-in again.")
     token = r.json()
     jwks = jwt.PyJWKClient(AUTH + "/.well-known/jwks.json")
     key = jwks.get_signing_key_from_jwt(token["id_token"])
@@ -131,7 +142,7 @@ def callback(q):
         )
 
 
-def access():
+def _access():
     t = load("oauth")
     if "chatgpt.tokens.use.direct" not in t.get("scopes", []):
         raise ValueError("Continue with ChatGPT first and allow plan usage.")
@@ -159,9 +170,14 @@ def access():
     return t["access_token"]
 
 
+def access():
+    with TOKEN_LOCK:
+        return _access()
+
+
 def settings():
     return load("provider") or {
-        "provider": "demo",
+        "provider": "chatgpt",
         "model": "",
         "base_url": "https://api.openai.com/v1",
     }
@@ -176,3 +192,49 @@ def public_settings():
         t.get("access_token") and "chatgpt.tokens.use.direct" in t.get("scopes", [])
     )
     return s
+
+
+def connection_status():
+    """Validate real account access, rather than treating a saved token as a connection."""
+    result = {}
+    for connection in ("chatgpt", "api"):
+        configured = (
+            bool(load("oauth").get("access_token"))
+            if connection == "chatgpt"
+            else bool(settings().get("api_key"))
+        )
+        result[connection] = {
+            "configured": configured,
+            "valid": False,
+            "message": "Connect this account first.",
+        }
+        if not configured:
+            continue
+        try:
+            key = access() if connection == "chatgpt" else settings()["api_key"]
+            base = RESOURCE if connection == "chatgpt" else settings()["base_url"]
+            response = httpx.get(
+                base + "/models",
+                headers={"Authorization": "Bearer " + key},
+                timeout=10,
+                follow_redirects=False,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if not isinstance(data, dict) or not any(
+                    isinstance(data.get(k), list) for k in ("models", "data")
+                ):
+                    raise ValueError("Invalid model catalog")
+                result[connection].update(
+                    valid=True, message="Account access checked with the provider."
+                )
+            else:
+                result[connection]["message"] = (
+                    f"Provider access check returned HTTP {response.status_code}. Check sign-in or credentials."
+                )
+        except Exception:
+            result[connection]["message"] = (
+                "Account access could not be verified. Check the connection and sign in again."
+            )
+    result["ready"] = any(item["valid"] for item in result.values())
+    return result

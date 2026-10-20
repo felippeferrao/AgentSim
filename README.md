@@ -1,12 +1,12 @@
 # WABIX AgentSim
 
-Watch a small team of AI helpers work, one job at a time. Built for beginners, family learning and professional demonstrations. All interface text is plain English.
+Build a team of AI helpers and watch real work happen automatically. Plain English, professional design, and concrete explanations for beginners.
 
-![Approved design](KnowledgeBase/design/approved-reference.png)
+![Home dashboard](KnowledgeBase/design/implemented-home.png)
 
 ## Start
 
-Requires Python **3.12** and macOS, Linux or Windows (use the Python commands on Windows). No Node build is needed.
+Use Python **3.12**. No frontend build is needed.
 
 ```sh
 git clone https://github.com/felippeferrao/AgentSim.git
@@ -14,7 +14,7 @@ cd AgentSim
 ./start.sh
 ```
 
-`start.sh` creates an isolated environment and installs the pinned dependencies. If `uv` is installed it can obtain Python 3.12 automatically. Otherwise install Python 3.12 first. Manual setup:
+The script creates an isolated environment and installs pinned dependencies. With `uv` it can obtain Python 3.12. Without `uv`, install Python 3.12 first. For manual setup:
 
 ```sh
 python3.12 -m venv .venv
@@ -22,56 +22,56 @@ python3.12 -m venv .venv
 .venv/bin/python server.py
 ```
 
-Open **http://127.0.0.1:8080**. Change the port with `PORT=8081 ./start.sh`. The app binds only to loopback. For a simple remote server, run it there and use an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 your-server`). Open the loopback address on your own computer so the OAuth callback uses that tunnel. This is a single-user app, not a public multi-user service.
+Open **http://127.0.0.1:8080**. Use `PORT=8081 ./start.sh` to change ports. The app is single-user and binds only to loopback. On a simple remote server, use an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 your-server`), then open that exact loopback address locally so the OAuth callback can follow the tunnel. No public multi-user deployment is included.
 
-## Try it
+## Your workspace
 
-1. Open **Agents**. Edit each job. Explicitly check its tools, skills and individual MCP tools.
-2. Open **Teams**. Pick the helpers that work together. They run in the order shown.
-3. In **Home**, write a goal such as “Plan a picnic for five people.” Choose One agent or Team.
-4. For a sample lesson, keep Demo and press Start demo, then Next step. Compare two saved runs.
-5. For real AI, open **Connection setup**. Choose your own connection, load/select a model, save, then press Run with AI. Real execution runs automatically; Next step is the guided Demo/review control.
+**Home** is a short dashboard with Agents, Teams, Tools, Skills, MCP Connections and Watch & run cards. It explains counts and next steps. It does not start a run. Data is persistent SQLite in `agentsim.db`, not temporary in-memory state. A new installation starts empty. You can explicitly load examples without overwriting your own helpers. Existing original samples are labeled Example configuration; saved setup is not proof of an AI request.
 
-### Sign in with ChatGPT (preferred)
+When Home opens with no provider-verified connection, Connection setup opens automatically. A saved token/key is not presented as successful access: the backend checks the provider's models endpoint. Dismissing the dialog still allows configuration; real execution remains blocked until access is verified.
 
-Press **Continue with ChatGPT**. AgentSim creates its own host identity and starts the official dynamic public-client OAuth flow. Approve the requested ChatGPT plan permission in your browser. After returning, choose **ChatGPT**, load your account's models, choose one and save.
+**Agents** has Import setup / Export setup and a four-tab editor:
 
-No pre-existing Codex/Cortex token, partner key or client secret is used. Access depends on the account's eligibility and granted scopes. See [official registration guide](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) and [inference contract](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).
+1. **Profile** — character, name, role, goal, purpose, context, instructions, expected result, delimited teaching examples, **this agent's connection and model**, and explained advanced settings.
+2. **Tools** — explicit tool permissions.
+3. **Skills** — instruction packages; dependencies never grant tools silently.
+4. **MCPs** — each connection's individual discovered tools.
 
-**Verification limit:** the authorization URL was opened in an automated browser on 2026-10-20 and OpenAI returned HTTP 403 (“Um momento…” challenge). No human consent, token exchange or external inference was completed. The callback, JWT validation, refresh and Responses adapter are implemented; a successful live OAuth-to-CrewAI run remains unverified.
+The approved Researcher, Writer, Reviewer and Robot characters are selectable and persisted. Profile fields and behavior settings map to actual CrewAI configuration, not decorative metadata. [Mapping and schema](KnowledgeBase/AGENT_PROFILES.md).
 
-### Alternative: your API provider
+**Watch & run** preserves the approved team visualization. Choose a team, enter a goal and press Run with AI. Execution advances automatically through server-sent events; no Next clicks are required. Every helper uses its own connection/model, including heterogeneous teams. Inputs, outputs, tool events and provider-reported tokens are inspectable. Only configuration-based teaching explanations are shown, never raw private reasoning traces. Failed runs show errors and never switch to samples.
 
-Choose **API provider** and enter a key **locally in the app**, never in chat. Advanced settings accept an HTTPS base URL for a provider supporting **streaming Responses API**, or a loopback HTTP endpoint. This is an alternative you explicitly select; it never silently replaces ChatGPT. Chat Completions-only providers are not supported yet.
+**Educational samples** are secondary and explicitly chosen. Only that optional mode uses deterministic samples and a Next step lesson. Sample token counts are labeled; they are never real provider usage. Compare runs lets you inspect saved results.
 
-Credentials live in ignored `.local/` files, atomically written with `0600` permissions. They are excluded from setup exports and API settings responses. Local files are protected by OS permissions, not encrypted at rest. Sign out removes local OAuth tokens; revoke app access in ChatGPT to revoke remote permission. Use trusted local accounts.
+## Connect ChatGPT
 
-## What is real?
+In Connection setup press **Continue with ChatGPT**, complete the official browser flow, then Check connection again. Keep AgentSim running for the loopback callback. In each agent's Profile, select ChatGPT, load your account's available models and choose a model for that helper.
 
-- **CrewAI 1.15.28** runs actual `Agent`, `Task`, `Crew` and sequential handoffs for real runs.
-- A custom `BaseLLM` adapter calls the Responses API with `store=false`, `stream=true`, requiring `response.completed`.
-- Real counts come only from provider `usage`; missing counts stay unavailable. No cost estimate is invented.
-- The calculator executes a restricted arithmetic AST. No `eval`, shell or arbitrary uploads.
-- Teaching documents run through an actual MCP stdio server, with separate search/read permissions. “Check connection” discovers its tools.
-- Skills are plain instructions added to the agent/task. Dependencies must already be explicitly enabled or execution fails with a clear message.
-- SQLite saves configurations and completed runs. Background job events track steps, tool calls and usage. Private reasoning/LLM trace events are not exposed.
-- **Demo** is deterministic sample content, with clearly labeled sample counts and no AI requests.
+AgentSim uses its own dynamic open-source client registration, host identity, PKCE, nonce, issued client id, JWT validation and protected credential files. It never reads Codex/Cortex credential stores. ChatGPT plan permission is separate from identity. [Official sign-in guide](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [inference contract](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference).
 
-There is no successful live external-inference result claimed in this initial delivery. See [status](KnowledgeBase/STATUS.md) for exact evidence and remaining work.
+**Live verification remains pending:** OpenAI returned a 403 browser challenge before consent in the automated environment. No actual OAuth token exchange or external AI inference was completed. The app explains that boundary and retains a reviewable sign-in link. [OAuth review and human test steps](KnowledgeBase/OAUTH_REVIEW.md).
 
-## Import and export
+### Explicit API alternative
 
-Agents/Teams → Export setup downloads a JSON configuration. Import setup validates it on the server and preserves existing saved runs. Files must be JSON objects, at most 200 KB. Executable code and unknown tool permissions are rejected. Tools/MCP installation through imports is not supported.
+Open Alternative: your API connection and enter your own key locally, never in chat. Use an HTTPS base URL supporting streaming Responses, or HTTP loopback for a local service. Save and check, then select API and a model separately for each agent. Global settings hold connection credentials; they do not override agent models. Chat Completions-only providers are not supported. Optional temperature/output settings are sent only when set, and unsupported settings produce an error without silent fallback.
 
-Skills → Import a skill accepts only a documented plain JSON record. See [import format](KnowledgeBase/IMPORTS.md). It never enables dependencies, executes scripts or downloads packages.
+Credentials stay in ignored `.local/` files, written atomically with `0600` permissions. They are excluded from exports and public settings responses. This is OS file protection, not encryption at rest. Sign out clears local OAuth credentials; revoke remote access in ChatGPT settings if required.
 
-## Verify
+## Connect external MCP servers
+
+MCP Connections → Add HTTP connection → enter the **Streamable HTTP** endpoint and optional Bearer/custom-header credential → Save → Discover tools → assign specific tools in each agent's MCPs tab.
+
+Discovery and calls use the real MCP SDK. Editing/removing connections or changing tool definitions revokes affected permissions. Credentials never enter Git, SQLite public catalogs, exports or timeline logs. Runtime validates permissions, connection revision and complete JSON input schema before tools/call. HTTP redirects and remote schema references are blocked. The built-in teaching documents also use real MCP stdio. [External MCP behavior and verification](KnowledgeBase/EXTERNAL_MCP.md).
+
+## Verification and limits
 
 ```sh
 PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -v
-node --check static/app.js  # optional, if Node is installed
+node --check static/app.js
 ```
 
-Tests exercise actual CrewAI with a scripted provider, actual MCP subprocess transport, import restrictions, arithmetic restrictions, OAuth state/PKCE isolation and a local Responses SSE contract fixture. Scripted responses/fixture counts are test data, **not proof of external AI inference**.
+Tests include actual CrewAI execution with a scripted LLM, authenticated HTTP MCP server processes, complete app HTTP/SSE runs against a controlled Responses fixture, per-agent heterogeneous models, migration, profile mapping, permissions and OAuth contracts. Fixture responses/counts are **not live external AI**.
 
-Project instructions, decisions, architecture and evidence are in [KnowledgeBase](KnowledgeBase/README.md). No public app deployment is included.
+The current app supports one ChatGPT registration and one API credential connection, chosen independently by each agent. Legacy HTTP+SSE MCP, remote MCP OAuth, arbitrary tool plugins, encrypted credential vault, durable background-job recovery, cancellation and public multi-user hosting remain future work. Completed runs persist; a server restart interrupts in-flight jobs.
+
+See [KnowledgeBase](KnowledgeBase/README.md) for requirements, architecture, evidence and exact delivery status.

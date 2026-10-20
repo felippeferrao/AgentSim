@@ -1,31 +1,17 @@
 # Architecture and decisions
 
-## Runtime
+Browser HTML/CSS/JavaScript → loopback Python HTTP server → SQLite configuration/history. Real jobs run in a background thread; `/api/jobs/<id>/events` streams SSE snapshots. The browser updates automatically until completion or failure. JSON job snapshots remain available for status checks. Only the explicitly selected educational sample mode uses deterministic content and Next step.
 
-Browser HTML/CSS/JavaScript → loopback Python HTTP server → SQLite configuration/history. Real runs use a background thread with JSON event polling; a CrewAI sequential Crew owns tasks and passes prior task outputs as context. The UI exposes completed task output and explicit tool/usage events only, not raw model traces. Demo is a separate deterministic path.
+Home is the dashboard. Watch & run owns the approved visualization. Initial installation has no helpers; example loading is an explicit non-destructive merge. Legacy sample definitions are tagged, and `profiles.py` migrates legacy agents into persisted rich profiles without resetting data. See [profile schema/mapping](AGENT_PROFILES.md).
 
-`runtime.py` implements the CrewAI BaseLLM interface. Both ChatGPT OAuth and a compatible API provider use streaming Responses. OAuth tokens are passed only to the public OpenAI API, with store=false and stream=true. Incomplete/failed/interrupted streams are failures. Usage is retained per call and aggregated per task only when reported. Tool execution is the CrewAI text tool protocol, bounded to six iterations; no code execution or agent delegation is enabled.
+Each helper has its own ResponsesLLM adapter, connection and model. CrewAI 1.15.28 owns real Agent/Task/Crew sequential execution. Previous task outputs are supplied through CrewAI context. Profile instructions and labeled teaching examples are actually sent; behavior settings map to framework fields. API credentials are shared connection records, not global model overrides. Optional temperature/output limits are omitted unless set. Failed or unsupported requests remain failures. No raw private model reasoning is exposed.
 
-`mcp_documents.py` is a real FastMCP stdio server with two allowlisted read-only tools. Its documents are bundled teaching content, not private local files. Each session discovers/calls tools through the MCP SDK. Custom external MCP connections and arbitrary tool plugins remain future work; do not describe the built-in catalog as a universal MCP manager.
+The Responses adapter sends store=false and stream=true and requires response.completed. Provider usage is aggregated by actual task; missing usage stays unavailable. Controlled fixture counts are not evidence of external inference.
 
-## Own OAuth
+External MCP uses the official SDK's Streamable HTTP client. The protected local registry is the authority for connection configuration and credentials; public catalog snapshots strip credentials. Discovery does not grant tools. Calls enforce explicit agent grant, current tool/connection revision and nested JSON input schema. Editing/removing/changed definitions revoke permissions. Redirects and remote schema references are blocked. External tool arguments/raw results stay outside timeline events; the result is passed to the authorized helper. The built-in teaching documents still run over real MCP stdio. [MCP details](EXTERNAL_MCP.md).
 
-`auth.py` implements dynamic_agent_client registration, a persistent AgentSim host UUID, random state/nonce, S256 PKCE, exact loopback redirect URI, issued-client-id checks, code exchange, JWKS signature/issuer/audience/expiration/nonce validation and same-subject checks on reauthorization. Granted plan scopes are checked separately from identity. Refresh replaces token data atomically. Files are private to this app under .local/ and never committed or exported. One ChatGPT registration is supported at a time; a multi-account switcher is not yet implemented.
+OAuth is an independent dynamic public-client flow with app-specific host UUID, state/nonce/PKCE, exact loopback redirect, issued-client binding, JWT validation, plan permission and atomic refresh. Incomplete invalid_grant registration can be retried without reporting a connection. Backend access checks validate providers' models endpoints. The UI automatically offers setup when Home is disconnected. See [OAuth review](OAUTH_REVIEW.md). No Cortex/Codex credentials or private code are reused.
 
-Official sources checked 2026-10-20:
-- https://developers.openai.com/siwc/quickstart
-- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
-- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
-- https://auth.openai.com/.well-known/openid-configuration
+Official logo copied only from `/Users/felippeferrao/Documents/antigravity/hopeful-lavoisier/wabix-cortex/frontend/public/wabix-logo.png`. Approved artwork remains unmodified and is displayed as a CSS atlas. User direction controls the palette and layout over generic brand-color defaults.
 
-No claim that a ChatGPT subscription is a general API key. No reuse of Codex auth files or backend-api endpoints. External provider consent and inference remain unverified because the automated browser encountered an HTTP 403 challenge.
-
-## Visual and brand
-
-User explicitly prioritized the approved image over generic brand color overrides. Retain its palette and composition. The `wabix-brand-identity` skill informed asset handling, spacing and clarity; user direction controls the palette. The unmodified approved image is also used as a CSS image atlas for the mascot and helper illustrations, preserving those exact illustrations without regenerating them.
-
-Official logo provenance: copied only `/Users/felippeferrao/Documents/antigravity/hopeful-lavoisier/wabix-cortex/frontend/public/wabix-logo.png` to static/wabix-logo.png. No Cortex source was imported. The logo asset includes substantial transparent clear space; CSS preserves it and scales its display.
-
-## Limits
-
-Single-user loopback app; no internet-facing authentication, tenant isolation or deployment. Credential files use OS permissions rather than encryption. Runs are not durable jobs: restart interrupts in-flight work, completed runs persist. A single real run is accepted at a time; configuration edits during a run apply to later runs. Future production service needs a durable queue, stronger concurrency/storage model, access control and credential vault.
+Single-user loopback application, no public authentication/tenancy. Completed work persists; background jobs are not restart-durable. A single real run is accepted at a time. Agent configuration edits affect subsequent runs; MCP destination/tool revisions also protect stale active wrappers. Credentials use owner-only local files rather than encryption. Future public hosting needs durable jobs, authentication, isolation and a proper vault.

@@ -1,0 +1,13 @@
+# External MCP connections
+
+MCP Connections → Add HTTP connection → Save → Discover tools → Agents → MCPs → explicitly select individual tools.
+
+Supported transport is **MCP Streamable HTTP**, implemented using the installed official MCP SDK's `streamable_http_client`. Legacy HTTP+SSE transport, remote OAuth login and arbitrary stdio executables are not offered. HTTPS is required for external hosts; HTTP is accepted only for loopback testing. Redirects are disabled, so a credential cannot be forwarded to a different destination. URLs cannot contain credentials, query parameters or fragments.
+
+Authentication can be none, Bearer token, or a named credential header such as X-API-Key. Protocol headers are reserved. Credential values are single-line local entries, written atomically with owner-only file permissions to ignored `.local/mcp.json`. Public catalog records expose only `hasCredential`; credentials are absent from state responses, SQLite catalog snapshots, setup exports, timeline events, screenshots and committed files. External tool arguments and raw results are kept out of timeline logs; the tool result is passed to the helper, and exact stored credential values are redacted from remote results before use. A helper's final answer can contain information returned by an authorized external service, so choose servers and tools you trust.
+
+Discovery performs actual initialize and paginated tools/list. It does not grant any tools. Tool schemas must be self-contained JSON Schema objects; remote references are rejected. Discovery is bounded to 100 tools / 100 KB and request timeouts. Each call validates the granted `connection:tool` id, the current registered connection/tool revision, and the complete nested input schema before performing tools/call. Dynamic CrewAI tools preserve the advertised JSON schema, including optional fields. No imported code is executed.
+
+Editing a connection clears its inventory and revokes its grants. A fresh discovery is required, followed by explicit re-selection. A changed tool schema, title or description revokes that tool's grant. Removing a connection revokes its grants and deletes its local credential record. A stale running tool wrapper cannot silently switch to an edited destination: its connection revision no longer matches.
+
+Verification uses `tests/fixture_mcp_http.py`, a separate authenticated local server process with a freshly generated test credential. Tests cover Bearer and custom-header discovery, actual tools/call, optional arguments, schema/permission denial, edit/remove revocation, API management round-trips and actual CrewAI invocation with a scripted LLM. This is real MCP transport, not evidence of external LLM inference. No private Brain Mentoria AI credential was used.
