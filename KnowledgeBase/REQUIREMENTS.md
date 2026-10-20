@@ -23,3 +23,5 @@ Real AI is the primary experience; disconnected Home must automatically open Con
 External HTTP MCP configuration and use are in scope: registry management, authentication, discovery, granular grants, schema-validated calls, clear errors, local secrets and controlled-endpoint verification, independent of OAuth access limits. No Brain Mentoria AI credential is authorized for the controlled tests.
 
 Latest profile navigation refinement: split the original step 1 into Identity (character, name and role), Job (remaining fields through Expected result), and Model & settings (available-model dropdown and remaining configuration). Keep Tools, Skills and MCPs as following separate steps. Populate the model dropdown from the selected connection automatically.
+
+- Account connection is configured once. Remove the per-agent ChatGPT/API selector; automatically load the connected account catalog while keeping model choice per agent.

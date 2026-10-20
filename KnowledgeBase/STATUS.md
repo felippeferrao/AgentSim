@@ -41,3 +41,7 @@ No public deployment. Commits and push are reported in the delivery message and 
 The original Profile step is now split into three visible panels, followed by Tools, Skills and MCPs. Back/Next and direct step navigation retain unsaved name, avatar, job and model values. Model discovery runs automatically in step 3 and on connection changes; it populates a real select control. JavaScript syntax and browser checks passed. Existing backend/runtime mappings were unchanged by this UI revision.
 
 During this verification, the existing ChatGPT connection reported provider-verified access and its model catalog returned **7 available models**. This supersedes the earlier delivery's unverified model-list status. This UI task did not perform a new sign-in, inspect credential contents, or execute external inference. No user agent data was changed by the browser checks (the editor was closed without saving).
+
+## Account model selection simplification
+
+Removed the per-agent ChatGPT/API selector. Step 3 resolves the account from Connection setup and automatically loads its catalog, preserving model selection per agent and saved connection metadata for execution. Browser verification found no connection selector, seven actual account models, and selection retained across step changes. Closed the editor without saving user data. JavaScript syntax check and all 27 backend tests passed (6.805 seconds). No external inference performed.
