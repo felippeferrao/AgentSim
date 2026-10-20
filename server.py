@@ -193,7 +193,7 @@ def validate(s):
                 if not {"id", "name", "job", "tools", "skills", "mcp"} <= set(a):
                     raise ValueError("Missing agent fields.")
                 a.update(profiles.validate(a))
-            elif set(a) - {"example"} != {"id", "name", "agents"}:
+            elif set(a) - {"example", "manager"} != {"id", "name", "agents"}:
                 raise ValueError("Invalid team fields.")
         if len(set(ids)) != len(ids):
             raise ValueError("Duplicate ids.")
@@ -255,6 +255,13 @@ def validate(s):
             x not in [a["id"] for a in s["agents"]] for x in t["agents"]
         ):
             raise ValueError("Unknown team member.")
+        if len(set(t["agents"])) != len(t["agents"]):
+            raise ValueError("Choose each team member only once.")
+        if t.get("manager") is not None:
+            if not isinstance(t["manager"], str) or t["manager"] not in t["agents"]:
+                raise ValueError("Choose a manager from this team's members.")
+            if len(t["agents"]) < 2:
+                raise ValueError("A managed team needs a manager and at least one other agent.")
     if not isinstance(s["runs"], list) or len(s["runs"]) > 200:
         raise ValueError("Invalid run history.")
     return s
@@ -271,7 +278,7 @@ def make_run(s, body):
     if body.get("mode") == "one":
         members = members[:1]
     if not members:
-        raise ValueError("Add a helper to this team first.")
+        raise ValueError("Add an agent to this team first.")
     previous = goal
     steps = []
     for i, a in enumerate(members):
@@ -560,6 +567,16 @@ class Handler(BaseHTTPRequestHandler):
                             "mode": body.get("mode", "team"),
                             "team": next(t["name"] for t in s["teams"] if t["id"] == body["team"]),
                             "provider": "real",
+                            "managerId": selected_team.get("manager")
+                            if body.get("mode") != "one"
+                            else None,
+                            "orchestration": "managed"
+                            if selected_team.get("manager") and body.get("mode") != "one"
+                            else "sequential",
+                            "roster": [
+                                {"agentId": a["id"], "agent": a["name"], "avatar": a["avatar"]}
+                                for a in selected_agents
+                            ],
                             "models": [a["model"] for a in selected_agents],
                             "steps": steps,
                             "completed": True,

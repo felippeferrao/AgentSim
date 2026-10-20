@@ -28,6 +28,7 @@ class AppTests(unittest.TestCase):
         for p in self.patches:
             p.start()
         captured = []
+        scripts = {}
 
         class Fixture(BaseHTTPRequestHandler):
             def do_GET(self):
@@ -42,6 +43,12 @@ class AppTests(unittest.TestCase):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 captured.append(body)
                 time.sleep(0.15)
+                script = scripts.get(body["model"])
+                answer = (
+                    script.pop(0)
+                    if script
+                    else "Final Answer: Controlled answer from " + body["model"]
+                )
                 data = {
                     "type": "response.completed",
                     "response": {
@@ -59,8 +66,7 @@ class AppTests(unittest.TestCase):
                                 "content": [
                                     {
                                         "type": "output_text",
-                                        "text": "Final Answer: Controlled answer from "
-                                        + body["model"],
+                                        "text": answer,
                                         "annotations": [],
                                     }
                                 ],
@@ -83,6 +89,7 @@ class AppTests(unittest.TestCase):
             threading.Thread(target=service.serve_forever, daemon=True).start()
         self.base = f"http://127.0.0.1:{self.app.server_port}/api/"
         self.captured = captured
+        self.scripts = scripts
 
     def tearDown(self):
         for service in [self.app, self.provider]:
@@ -154,6 +161,52 @@ class AppTests(unittest.TestCase):
         self.assertEqual(server.read()["runs"][-1]["id"], ident)
         self.assertNotIn("fixture-only-key", json.dumps(snapshots))
         self.assertNotIn("sample", run["steps"][0]["output"].lower())
+
+    def test_managed_run_streams_delegation_before_completion(self):
+        state = self.configured_state()
+        state["teams"][0]["manager"] = "researcher"
+        for a in state["agents"]:
+            a["tools"], a["skills"], a["mcp"] = [], [], []
+        self.assertEqual(self.post("state", state).status_code, 200)
+        self.post(
+            "settings",
+            {
+                "provider": "api",
+                "api_key": "fixture-only-key",
+                "base_url": f"http://127.0.0.1:{self.provider.server_port}/v1",
+            },
+        )
+        self.scripts["model-alpha"] = [
+            'Thought: Private fixture reasoning\nAction: Delegate work to coworker\nAction Input: {"coworker":"2. Writer — Writer", "task":"Write the picnic plan", "context":"Two people"}',
+            "Final Answer: The manager accepted the plan.",
+        ]
+        ident = self.post(
+            "real-run", {"goal": "Plan a picnic", "team": "research", "mode": "team"}
+        ).json()["id"]
+        snapshots = []
+        with httpx.stream("GET", self.base + "jobs/" + ident + "/events", timeout=30) as stream:
+            for line in stream.iter_lines():
+                if line.startswith("data: "):
+                    snapshots.append(json.loads(line[6:]))
+        self.assertEqual(snapshots[-1]["status"], "completed")
+        self.assertTrue(
+            any(
+                s["status"] == "running" and any(e["type"] == "delegation" for e in s["events"])
+                for s in snapshots
+            )
+        )
+        run = snapshots[-1]["run"]
+        self.assertEqual(run["orchestration"], "managed")
+        self.assertEqual(run["managerId"], "researcher")
+        self.assertEqual([s["agentId"] for s in run["steps"]], ["writer", "researcher"])
+        self.assertEqual(
+            [c["model"] for c in self.captured], ["model-alpha", "model-beta", "model-alpha"]
+        )
+        self.assertEqual(sum(s["inputTokens"] for s in run["steps"]), 51)
+        self.assertEqual(sum(s["outputTokens"] for s in run["steps"]), 18)
+        self.assertIn("reply", [e["type"] for e in run["events"]])
+        self.assertNotIn("Private fixture reasoning", json.dumps(run))
+        self.assertEqual(server.read()["runs"][-1]["managerId"], "researcher")
 
     def test_explicit_examples_and_import_export_shape(self):
         self.assertEqual(httpx.get(self.base + "state").json()["agents"], [])

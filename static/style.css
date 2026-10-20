@@ -959,3 +959,307 @@ pre {
     padding: 10px 8px;
   }
 }
+/* Live orchestration extends the approved card/portrait style. */
+.goal-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+}
+.goal-actions input {
+  flex: 1;
+  min-width: 0;
+}
+.goal-actions button {
+  flex: none;
+}
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+.section-heading h2 {
+  margin-bottom: 10px;
+}
+.section-heading p {
+  margin: 0 0 16px;
+}
+.manager-row {
+  display: flex;
+  justify-content: center;
+}
+.manager-row .agent {
+  max-width: 300px;
+  width: 100%;
+  flex: none;
+}
+.worker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.live-agent {
+  position: relative;
+  border: 2px solid #dfe5ef;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.live-agent.selected {
+  outline: 2px solid #8b79fa;
+  outline-offset: 4px;
+}
+.agent-kind {
+  font-size: 12px;
+  font-weight: 700;
+  color: #58698c;
+}
+.live-agent .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+}
+.activity-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #98a4bb;
+  flex: none;
+}
+.activity-active {
+  border-color: #08a49e;
+  animation: agent-pulse 1.6s ease-in-out infinite;
+}
+.activity-active .activity-dot {
+  background: #08a49e;
+}
+.activity-waiting {
+  border-color: #ffb976;
+}
+.activity-waiting .activity-dot {
+  background: #ff872d;
+}
+.activity-done .activity-dot {
+  background: #08a49e;
+}
+.activity-failed {
+  border-color: #d63b55;
+}
+.activity-failed .activity-dot {
+  background: #d63b55;
+}
+@keyframes agent-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px #08a49e25;
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px #08a49e40,
+      0 0 26px #08a49e25;
+  }
+}
+.delegation-route {
+  text-align: center;
+  color: #657493;
+  padding: 24px 8px;
+  line-height: 1.5;
+}
+.live-route {
+  color: #6551c9;
+  font-weight: 650;
+}
+.legend {
+  font-size: 13px;
+  color: #657493;
+  margin: 22px 0 0;
+}
+.legend .activity-dot {
+  background: #08a49e;
+  margin-right: 6px;
+}
+.conversation {
+  max-height: 620px;
+  overflow: auto;
+  padding: 4px 8px 8px 4px;
+  overflow-wrap: anywhere;
+}
+.dialogue-message {
+  background: #eef4fc;
+  border-left: 4px solid #1873f4;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 14px 0;
+}
+.dialogue-message.reply {
+  background: #eaf8f3;
+  border-color: #08a49e;
+  margin-left: 24px;
+}
+.dialogue-message.final-answer {
+  background: #f1edff;
+  border-color: #8b79fa;
+}
+.dialogue-message h3 {
+  font-size: 16px;
+  margin: 8px 0;
+}
+.dialogue-message p,
+.activity-event p,
+.inspector details p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.dialogue-message p {
+  margin: 8px 0;
+}
+.activity-event {
+  padding: 12px 8px;
+  border-bottom: 1px solid #e9edf3;
+  font-size: 14px;
+}
+.activity-event small {
+  display: block;
+}
+.activity-event details {
+  margin: 8px 0 0;
+}
+.run-complete {
+  color: #08796e;
+  font-weight: 650;
+}
+.architecture-diagram {
+  width: 100%;
+  height: auto;
+  min-width: 480px;
+}
+.architecture-diagram rect {
+  fill: #eef4fc;
+  stroke: #c7d7ee;
+  stroke-width: 1.5;
+}
+.architecture-diagram text {
+  font:
+    13px Inter,
+    system-ui,
+    sans-serif;
+  fill: #58698c;
+}
+.architecture-diagram .node-title {
+  font-size: 16px;
+  font-weight: 700;
+  fill: #152653;
+}
+.diagram-lines {
+  fill: none;
+  stroke: #8b79fa;
+  stroke-width: 2;
+}
+.diagram-lines path {
+  marker-end: url(#arch-arrow);
+}
+.architecture-team {
+  margin-top: 24px;
+}
+.architecture-manager {
+  max-width: 380px;
+  margin: auto;
+  background: #f1edff;
+  border: 1px solid #cfc5ff;
+}
+.architecture-manager,
+.architecture-workers > div {
+  padding: 18px;
+  border-radius: 12px;
+  text-align: center;
+}
+.architecture-team span,
+.architecture-team small {
+  display: block;
+  margin-top: 8px;
+}
+.architecture-links {
+  padding: 22px;
+  text-align: center;
+  color: #6551c9;
+}
+.architecture-workers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+.architecture-workers > div {
+  background: #eaf8f3;
+  border: 1px solid #c9e6dc;
+  min-width: 150px;
+  flex: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-active {
+    animation: none;
+    box-shadow: 0 0 0 4px #08a49e40;
+  }
+}
+@media (max-width: 1100px) {
+  .live-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .live-layout .inspector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+}
+@media (max-width: 760px) {
+  .goal-actions {
+    flex-wrap: wrap;
+  }
+  .goal-actions button {
+    width: 100%;
+  }
+  .live-layout .inspector {
+    display: block;
+  }
+  .worker-grid {
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  }
+  .dialogue-message.reply {
+    margin-left: 10px;
+  }
+  .architecture-diagram {
+    min-width: 0;
+  }
+}
+
+.orchestration-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 16px;
+}
+.orchestration-board .live-agent {
+  padding: 12px 8px;
+}
+.live-avatar {
+  width: 128px;
+  height: 94px;
+  margin: 4px auto;
+}
+.live-avatar .avatar {
+  width: 170px;
+  max-width: none;
+  transform: scale(0.75);
+  transform-origin: top left;
+}
+.live-agent h2 {
+  font-size: 18px;
+}
+.live-agent p {
+  margin: 7px 0;
+}
+.orchestration-panel .delegation-route {
+  padding: 0 4px 16px;
+}

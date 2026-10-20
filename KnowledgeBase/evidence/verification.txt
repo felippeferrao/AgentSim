@@ -45,3 +45,11 @@ Controlled/scripted LLM responses and fixture token counts are NOT live AI.
 The existing OpenAI browser authorization attempt returned HTTP 403 before
 consent. No live OAuth token exchange or external AI inference was completed.
 No Brain Mentoria AI credential or Cortex/Codex token was used.
+
+Manager-led teams verification (2026-10-20)
+- python unittest discover: 30 tests, 8.413 seconds, OK.
+- Ruff and node --check static/app.js: pass.
+- Scripted LLM + actual CrewAI: delegated Writer three times (including a question), skipped Researcher, actual final manager result; no private ReAct reasoning in events.
+- Controlled HTTP Responses endpoint + actual app SSE: delegation observed before completion, worker reply and final manager result persisted, per-agent model choices and usage preserved.
+- Browser on isolated port 8081: active Writer card, waiting Reviewer manager, idle Researcher, live delegation and returned messages; zero active cards after completion.
+- Production app configuration browser checks: manager selection available, Architecture menu and diagram render, small header robot removed, account model combo remains automatic. No production team edits saved.

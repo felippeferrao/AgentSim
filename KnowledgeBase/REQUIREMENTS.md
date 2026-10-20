@@ -25,3 +25,8 @@ External HTTP MCP configuration and use are in scope: registry management, authe
 Latest profile navigation refinement: split the original step 1 into Identity (character, name and role), Job (remaining fields through Expected result), and Model & settings (available-model dropdown and remaining configuration). Keep Tools, Skills and MCPs as following separate steps. Populate the model dropdown from the selected connection automatically.
 
 - Account connection is configured once. Remove the per-agent ChatGPT/API selector; automatically load the connected account catalog while keeping model choice per agent.
+
+- Team configuration selects the team's manager. The manager chooses assignments and order dynamically rather than a fixed member pipeline.
+- Watch & run must pulse the agent actually executing and show delegation, questions, context and replies live underneath. Unused agents must not appear completed.
+- Add an Architecture navigation item with application/runtime and selected-team diagrams.
+- Preserve the current visual identity and approved artwork. Remove only the small robot icon beside the WABIX logo in the header. Use agents, not helpers, in product labels.

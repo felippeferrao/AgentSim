@@ -1,4 +1,4 @@
-"""Real CrewAI sequential tasks with a Responses adapter and allowlisted tools."""
+"""Real CrewAI tasks with a Responses adapter and allowlisted tools."""
 
 import ast
 import asyncio
@@ -173,6 +173,15 @@ class ResponsesLLM(BaseLLM):
             for m in messages
             if m.get("role") in ("system", "user", "assistant")
         ]
+        if self.config.get("agentId"):
+            self.emit(
+                "model_started",
+                {
+                    "agentId": self.config["agentId"],
+                    "agent": self.config.get("agentName"),
+                    "model": self.model,
+                },
+            )
         final = None
         options = {}
         if self.config.get("temperature") is not None:
@@ -256,58 +265,70 @@ def builtin_tools(a, emit, llm, catalog):
     return assigned
 
 
+def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra):
+    agent_class = agent_class or Agent
+    agent_config = dict(config)
+    agent_config["provider"] = a["model"]["connection"]
+    agent_config["model"] = a["model"]["name"]
+    if not agent_config["model"]:
+        raise ValueError(f"{a['name']}: choose a model in Profile before running AI.")
+    agent_config.update(
+        {k: a["model"][k] for k in ["temperature", "maxOutputTokens", "contextWindow"]}
+    )
+    agent_config.update(agentId=a["id"], agentName=a["name"])
+    llm = ResponsesLLM(agent_config, emit)
+    assigned = [] if manager else builtin_tools(a, emit, llm, state["catalog"]["mcp"])
+    skill = ""
+    for skill_id in a["skills"]:
+        definition = next(x for x in state["catalog"]["skills"] if x["id"] == skill_id)
+        missing = set(definition["requires"]) - set(a["tools"] + a["mcp"])
+        if missing:
+            raise ValueError(
+                f"{a['name']}: skill {definition['name']} needs explicit permission for "
+                + ", ".join(sorted(missing))
+            )
+        skill += " " + definition["instructions"]
+    agent = agent_class(
+        role=a["role"],
+        goal=a["goal"] + skill,
+        backstory="You are a helpful teaching assistant. Do not reveal private reasoning.\n"
+        + profiles.prompt_context(a),
+        llm=llm,
+        tools=assigned,
+        allow_delegation=False,
+        verbose=False,
+        max_iter=a["behavior"]["maxIterations"],
+        max_retry_limit=a["behavior"]["maxRetries"],
+        max_execution_time=a["behavior"]["maxExecutionSeconds"],
+        max_rpm=a["behavior"]["maxRequestsPerMinute"] or None,
+        respect_context_window=a["behavior"]["respectContextWindow"],
+        **extra,
+    )
+    return agent, llm, agent_config, skill
+
+
 def execute(state, body, emit, config=None):
     config = dict(config or auth.settings())
     team = next((t for t in state["teams"] if t["id"] == body.get("team")), None)
     if not team:
         raise ValueError("Choose a team.")
+    if team.get("manager") and body.get("mode") != "one":
+        from orchestration import execute_managed
+
+        return execute_managed(state, body, emit, config)
     members = [next(a for a in state["agents"] if a["id"] == i) for i in team["agents"]]
     if body.get("mode") == "one":
         members = members[:1]
     goal = body.get("goal", "").strip()
     if not goal or len(goal) > 500 or not members:
-        raise ValueError("Add a goal and at least one helper.")
+        raise ValueError("Add a goal and at least one agent.")
     agents = []
     tasks = []
     steps = []
     for i, original in enumerate(members):
         a = profiles.validate(original)
-        agent_config = dict(config)
-        agent_config["provider"] = a["model"]["connection"]
-        agent_config["model"] = a["model"]["name"]
-        if not agent_config["model"]:
-            raise ValueError(f"{a['name']}: choose a model in Profile before running AI.")
-        agent_config.update(
-            {k: a["model"][k] for k in ["temperature", "maxOutputTokens", "contextWindow"]}
-        )
-        llm = ResponsesLLM(agent_config, emit)
+        agent, llm, agent_config, skill = build_agent(a, state, config, emit)
         llm.current = i
-        assigned = builtin_tools(a, emit, llm, state["catalog"]["mcp"])
-        skill = ""
-        for skill_id in a["skills"]:
-            definition = next(x for x in state["catalog"]["skills"] if x["id"] == skill_id)
-            missing = set(definition["requires"]) - set(a["tools"] + a["mcp"])
-            if missing:
-                raise ValueError(
-                    f"{a['name']}: skill {definition['name']} needs explicit permission for "
-                    + ", ".join(sorted(missing))
-                )
-            skill += " " + definition["instructions"]
-        agent = Agent(
-            role=a["role"],
-            goal=a["goal"] + skill,
-            backstory="You are a helpful teaching assistant. Do not reveal private reasoning.\n"
-            + profiles.prompt_context(a),
-            llm=llm,
-            tools=assigned,
-            allow_delegation=False,
-            verbose=False,
-            max_iter=a["behavior"]["maxIterations"],
-            max_retry_limit=a["behavior"]["maxRetries"],
-            max_execution_time=a["behavior"]["maxExecutionSeconds"],
-            max_rpm=a["behavior"]["maxRequestsPerMinute"] or None,
-            respect_context_window=a["behavior"]["respectContextWindow"],
-        )
 
         def callback(output, i=i, a=a, llm=llm, agent_config=agent_config):
             result = {
@@ -333,9 +354,21 @@ def execute(state, body, emit, config=None):
                 result["inputTokens"] = sum(u["input"] for u in usage)
                 result["outputTokens"] = sum(u["output"] for u in usage)
             steps.append(result)
+            emit(
+                "agent_completed",
+                {"agentId": a["id"], "agent": a["name"], "manager": False, "output": output.raw},
+            )
             emit("step_completed", {"index": i, "result": result})
             if i + 1 < len(members):
                 emit("step_started", {"index": i + 1, "agent": members[i + 1]["name"]})
+                emit(
+                    "agent_started",
+                    {
+                        "agentId": members[i + 1]["id"],
+                        "agent": members[i + 1]["name"],
+                        "task": tasks[i + 1].description,
+                    },
+                )
 
         task = Task(
             description=f"Current goal: {goal}\nYour job: {a['goal']}.{skill}\nAgent instructions: {a['instructions']}\nUse previous task results when provided.",
@@ -347,6 +380,10 @@ def execute(state, body, emit, config=None):
         agents.append(agent)
         tasks.append(task)
     emit("step_started", {"index": 0, "agent": members[0]["name"]})
+    emit(
+        "agent_started",
+        {"agentId": members[0]["id"], "agent": members[0]["name"], "task": tasks[0].description},
+    )
     Crew(
         agents=agents,
         tasks=tasks,

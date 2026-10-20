@@ -14,7 +14,7 @@
 
 ## Verification evidence
 
-**27 automated tests passed** (final run: 7.030 seconds). Tests distinguish three evidence categories:
+**30 automated tests passed** (latest run: 8.413 seconds). Tests distinguish three evidence categories:
 
 1. **Real MCP transport:** separate authenticated Streamable HTTP server process with a generated fixture credential; Bearer and custom-header discovery, actual tool calls, optional/nested schema handling, denied grants, changed revisions, edit/remove revocation and HTTP API management round-trip. Actual CrewAI calls an external fixture MCP tool using a scripted LLM. No Brain Mentoria AI credential was used.
 2. **Real application and framework path with a controlled provider:** HTTP configuration → backend access check → actual CrewAI tasks → local Responses SSE endpoint → application SSE events → persisted results. Two agents select model-alpha and model-beta; requests preserve those model choices. Completion occurs without Next actions. Fixture usage values remain test data, not live external usage.
@@ -45,3 +45,13 @@ During this verification, the existing ChatGPT connection reported provider-veri
 ## Account model selection simplification
 
 Removed the per-agent ChatGPT/API selector. Step 3 resolves the account from Connection setup and automatically loads its catalog, preserving model selection per agent and saved connection metadata for execution. Browser verification found no connection selector, seven actual account models, and selection retained across step changes. Closed the editor without saving user data. JavaScript syntax check and all 27 backend tests passed (6.805 seconds). No external inference performed.
+
+## Manager-led execution, live conversation and architecture
+
+Team configuration now persists a selected manager, with validated membership and at least one worker. Actual CrewAI hierarchical execution lets that manager delegate, ask questions, revisit workers and skip unused agents. Models and tool/MCP grants remain per agent. Existing teams are preserved; the UI requires choosing their manager rather than guessing one. [Execution behavior](ORCHESTRATION.md).
+
+Watch & run displays the fixed roster with actual activity events, pulsing active cards, a waiting status for the delegating manager, a live conversation and a task/result inspector. Repeated worker calls appear as separate completed tasks. Unused agents stay idle. Provider usage sums actual model calls, including repeated manager requests, without double-counting worker usage. Completed conversation events and manager metadata persist with the run. The optional sample lesson remains explicitly separate.
+
+Architecture is a new menu item with the actual browser/API/CrewAI/Responses/MCP/SQLite diagram and a selectable saved-team diagram. The approved artwork, logo, colors and overall visual style remain. Only the small header robot was removed. Product labels now use agents instead of helpers.
+
+Verification: all 30 tests pass (8.413 seconds), including actual CrewAI scripted delegation with repeated workers/questions and skipped agents, plus the HTTP Responses/SSE path observing delegation while a job is running and persisting replies/final results. Ruff, JavaScript syntax and diff whitespace checks pass. A separate temporary app on port 8081 with a controlled local provider verified manager waiting, worker active, actual dialogue before completion, idle unused agents, completed replies and no lingering active highlight. Screenshots marked fixture are controlled verification, not live external inference. No external inference was performed with the user's account.
