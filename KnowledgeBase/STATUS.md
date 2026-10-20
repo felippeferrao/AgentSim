@@ -61,3 +61,11 @@ Verification: all 30 tests pass (8.413 seconds), including actual CrewAI scripte
 The Home navigation cards were still text-only after the earlier delivery; that visual requirement had been missed. All six now contain visible artwork. Agents and Teams reuse the exact approved character atlas; Watch & run reuses the approved mascot with a play badge. Tools, Skills and MCP Connections use project-local generated illustrations matching the existing palette. The layout, avatar selection, team configuration and current account data are preserved.
 
 Verified in the user's existing in-app browser tab on port 8080, including a reload, screenshot inspection of all six cards, Teams card navigation, manager selector and Architecture diagram. Returned the user's tab to Home without saving any configuration edits. Proof: design/dashboard-illustrated-cards.png. Static PNG MIME type and cache revalidation were corrected so assets are served properly and frontend changes refresh reliably. All 30 tests pass (7.489 seconds), Ruff, JavaScript syntax and diff whitespace checks pass.
+
+## Sidebar order and distinct category illustrations
+
+Moved the existing Welcome to AgentSim card above the navigation menu, removed its old top gap, and made the desktop sidebar scrollable on shorter screens so every menu item remains reachable. The card and current visual style are preserved. Replaced the reused Agents/Teams portraits with two independent project-local illustrations: an AI chip/task composition for Agents and a group collaborating around a table for Teams. Removed the superseded dashboard portrait-composition CSS; execution/editor avatars remain unchanged.
+
+Reloaded and visually verified the user's existing in-app tab: Welcome is first, the menu appears directly below, and both distinct card illustrations load. Screenshot: design/dashboard-sidebar-top.png. No agent/team/account data was changed. JavaScript syntax and diff whitespace checks pass.
+
+Sidebar/card revision regression check: all 30 tests passed in 8.201 seconds.

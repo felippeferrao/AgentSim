@@ -104,15 +104,15 @@ function avatarClass(value) {
   );
 }
 function dashboardArt(name) {
-  if (name === "Agents")
-    return '<span class="dashboard-art dashboard-art-agents" aria-hidden="true"><span class="portrait portrait-0"></span></span>';
-  if (name === "Teams")
-    return '<span class="dashboard-art dashboard-art-team" aria-hidden="true"><span class="portrait portrait-0"></span><span class="portrait portrait-1"></span><span class="portrait portrait-2"></span></span>';
   if (name === "Watch & run")
     return '<span class="dashboard-art dashboard-art-watch" aria-hidden="true"><span class="robot"></span><span class="dashboard-play">▶</span></span>';
-  const image = { Tools: "tools", Skills: "skills", "MCP Connections": "mcp" }[
-    name
-  ];
+  const image = {
+    Agents: "agents",
+    Teams: "teams",
+    Tools: "tools",
+    Skills: "skills",
+    "MCP Connections": "mcp",
+  }[name];
   return `<span class="dashboard-art" aria-hidden="true"><img src="/card-${image}.png" alt="" width="1536" height="1024"></span>`;
 }
 function dashboard() {

@@ -89,7 +89,8 @@ nav button.active {
   border: 1px solid #e8edf5;
   border-radius: 17px;
   padding: 20px;
-  margin-top: 80px;
+  margin-top: 0;
+  margin-bottom: 18px;
   box-shadow: 0 6px 24px #15265309;
 }
 .robot {
@@ -1290,36 +1291,6 @@ pre {
   height: 100%;
   object-fit: contain;
 }
-.dashboard-art-agents {
-  background: linear-gradient(135deg, #eaf8f3, #f7fcfa);
-}
-.dashboard-art-agents .portrait {
-  display: block;
-  flex: none;
-  transform: scale(1.12);
-}
-.dashboard-art-team {
-  background: linear-gradient(135deg, #fff2e2, #f7f1ff);
-}
-.dashboard-art-team .portrait {
-  position: absolute;
-  display: block;
-  flex: none;
-  transform: scale(0.68);
-  transform-origin: center;
-  top: 20px;
-}
-.dashboard-art-team .portrait:nth-child(1) {
-  left: calc(50% - 175px);
-}
-.dashboard-art-team .portrait:nth-child(2) {
-  left: calc(50% - 85px);
-  top: 3px;
-  z-index: 1;
-}
-.dashboard-art-team .portrait:nth-child(3) {
-  left: calc(50% + 5px);
-}
 .dashboard-art-watch {
   background: linear-gradient(135deg, #eef4ff, #f4efff);
 }
@@ -1360,4 +1331,13 @@ pre {
 }
 .dashboard-card > span:last-child {
   font-weight: 650;
+}
+
+/* Welcome appears first; the menu remains reachable on shorter screens. */
+@media (min-width: 761px) {
+  aside {
+    min-height: 0;
+    height: calc(100vh - 76px);
+    overflow-y: auto;
+  }
 }

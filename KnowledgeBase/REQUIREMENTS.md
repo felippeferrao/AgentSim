@@ -32,3 +32,6 @@ Latest profile navigation refinement: split the original step 1 into Identity (c
 - Preserve the current visual identity and approved artwork. Remove only the small robot icon beside the WABIX logo in the header. Use agents, not helpers, in product labels.
 
 - Home navigation cards must include visible illustrations, not only text/counts. Keep the approved characters for Agents/Teams/Watch and matching resource artwork for Tools/Skills/MCP. Verify the result in the user's actual in-app tab.
+
+- The Welcome to AgentSim card belongs at the top of the desktop sidebar, with the complete navigation menu below it.
+- Agents and Teams dashboard images must be distinct purpose-made illustrations, not reused execution portraits.
