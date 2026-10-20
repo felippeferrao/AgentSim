@@ -1,0 +1,33 @@
+2026-10-20 — local verification
+Python 3.12.9; macOS Apple Silicon
+
+PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -v
+Ran 10 tests in 1.803s — OK
+
+Coverage exercised:
+- Actual CrewAI tasks with scripted provider, real calculator and real MCP search
+- Deterministic Demo; no real usage assigned to samples
+- Setup import validation and broken member/unknown permission rejection
+- Calculator AST rejects executable expressions
+- Actual MCP stdio initialize/discovery/read
+- OAuth PKCE/state/host identity/one-time callback and file permissions
+- Signed OAuth ID-token/client validation using ephemeral test keys
+- Plain skill import does not grant tool dependencies
+- Local Responses SSE fixture requires stream=true/store=false and maps usage
+
+uvx ruff check server.py runtime.py auth.py mcp_documents.py tests
+All checks passed!
+node --check static/app.js — passed
+git diff --check — passed
+
+HTTP app checks: create/read/update/delete, granular grants, invalid setup and
+cross-origin write rejection, actual MCP discovery passed.
+
+Browser checks: agent assignments saved; team demo started; Next step advanced;
+one-agent demo started; comparison displayed 3-helper versus 1-helper samples.
+Desktop/mobile screenshots inspected. No runtime console errors on final app load.
+Initial missing favicon was corrected.
+
+Live OpenAI authorization probe and browser navigation: HTTP 403 challenge,
+page title “Um momento…”. No consent or tokens obtained.
+No live external inference is claimed. Scripted/fixture tests are not live AI.

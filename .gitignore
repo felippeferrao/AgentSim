@@ -1,0 +1,9 @@
+__pycache__/
+*.db
+*.db-*
+.DS_Store
+.env
+work/
+.venv/
+.local/
+.playwright-cli/

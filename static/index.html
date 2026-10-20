@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><link rel="icon" href="/wabix-logo.png" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>WABIX AgentSim · Watch your team work</title
+  ><link rel="stylesheet" href="/style.css" />
+  <body>
+    <header>
+      <strong class="brand"
+        ><span class="mascot-small" aria-hidden="true"></span
+        ><img src="/wabix-logo.png" alt="WABIX" /> <span>AgentSim</span></strong
+      >
+      <div>
+        <span id="connection">○ Account not connected</span
+        ><button id="help">ⓘ Help</button><b class="tag">Demo • Sample data</b>
+      </div>
+    </header>
+    <aside>
+      <nav id="nav"></nav>
+      <section class="welcome">
+        <div
+          class="robot"
+          role="img"
+          aria-label="Friendly AgentSim robot"
+        ></div>
+        <h3>Welcome to AgentSim</h3>
+        <p>① Check your connection</p>
+        <button id="connect">Connection setup</button>
+        <p>② Build your team</p>
+        <p>③ Watch it work</p>
+        <small
+          >Demo needs no account.<br />Choose a real connection when
+          ready.</small
+        >
+      </section>
+    </aside>
+    <main id="main"></main>
+    <div id="toast" role="status"></div>
+    <dialog id="dialog">
+      <form method="dialog">
+        <button class="close" aria-label="Close">×</button>
+      </form>
+      <div id="dialogBody"></div>
+    </dialog>
+    <script src="/app.js"></script>
+  </body>
+</html>

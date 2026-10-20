@@ -1,0 +1,4 @@
+crewai[litellm]==1.15.28
+mcp>=1.26,<2
+httpx>=0.28,<1
+PyJWT[crypto]>=2.10,<3
