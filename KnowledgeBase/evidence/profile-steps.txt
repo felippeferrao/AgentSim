@@ -1,0 +1,20 @@
+2026-10-20 — agent profile navigation refinement
+
+node --check static/app.js — passed
+git diff --check — passed
+
+Browser verification:
+- Step 1 shows character, Name and Role only; Goal is hidden.
+- Step 2 shows Goal through Expected result; Model is hidden.
+- Step 3 shows connection, a native Model select, examples and advanced settings.
+- Back/Next preserve unsaved name, avatar and goal edits.
+- Entering step 3 automatically requests the selected connection's model catalog.
+- The configured ChatGPT connection returned 7 model options.
+- A chosen model remains selected after visiting another step and returning.
+- Controlled lookup failure preserves the saved selection and reports its
+  unverified availability. Refresh after removing the controlled failure reloads
+  the actual configured catalog successfully.
+- Browser checks closed the editor without saving; no user agent data changed.
+
+No inference request or credential-content inspection was performed.
+Backend profile schema and runtime mapping are unchanged by this UI revision.

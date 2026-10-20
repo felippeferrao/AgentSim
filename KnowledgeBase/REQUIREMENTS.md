@@ -16,8 +16,10 @@ Never reuse private Cortex code, Codex credentials or Cortex secrets. Only its p
 
 Home must be the entry dashboard/report with counts and explanatory cards, not the execution canvas. Move the approved canvas to explicit Watch & run. Keep Import setup / Export setup. Clearly identify example configurations and persistent SQLite data; do not auto-seed or reset user data.
 
-Agent editing requires four actual tabs: Profile, Tools, Skills, MCPs. Expand the profile to framework-backed role, goal, context, instructions, purpose, input/output examples, expected result and advanced model/behavior options. Persist/migrate it and show a configuration preview. Let the user choose among approved character portraits and render the saved choice consistently.
+Agent editing requires separate profile, Tools, Skills and MCP sections; the latest refinement below splits profile into three smaller steps. Expand the profile to framework-backed role, goal, context, instructions, purpose, input/output examples, expected result and advanced model/behavior options. Persist/migrate it and show a configuration preview. Let the user choose among approved character portraits and render the saved choice consistently.
 
 Real AI is the primary experience; disconnected Home must automatically open Connection setup. Account validity is checked by the backend. Real work advances through streamed events without Next clicks. Samples are a deliberate secondary educational option and never a fallback. Connection and model belong to each agent, supporting heterogeneous teams. Shared global settings are for credentials rather than model overrides.
 
 External HTTP MCP configuration and use are in scope: registry management, authentication, discovery, granular grants, schema-validated calls, clear errors, local secrets and controlled-endpoint verification, independent of OAuth access limits. No Brain Mentoria AI credential is authorized for the controlled tests.
+
+Latest profile navigation refinement: split the original step 1 into Identity (character, name and role), Job (remaining fields through Expected result), and Model & settings (available-model dropdown and remaining configuration). Keep Tools, Skills and MCPs as following separate steps. Populate the model dropdown from the selected connection automatically.

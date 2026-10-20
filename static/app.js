@@ -379,10 +379,12 @@ function agentEditor(id) {
     `<label class="field">${label}${multi ? `<textarea aria-label="${label}" name="${name}" rows="3">${esc(a[name])}</textarea>` : `<input aria-label="${label}" name="${name}" value="${esc(a[name])}">`}${help ? `<small>${help}</small>` : ""}</label>`;
   modal(
     `<h2>${id ? "Edit" : "Create"} agent</h2><p>${a.example ? "Example configuration. You can edit it or save it as your own." : "Give this helper a clear identity, job and boundaries."}</p><div class="editor-tabs" role="tablist">${[
-      ["profile", "1 · Profile"],
-      ["tools", "2 · Tools"],
-      ["skills", "3 · Skills"],
-      ["mcps", "4 · MCPs"],
+      ["profile", "1 · Identity"],
+      ["job", "2 · Job"],
+      ["settings", "3 · Model & settings"],
+      ["tools", "4 · Tools"],
+      ["skills", "5 · Skills"],
+      ["mcps", "6 · MCPs"],
     ]
       .map(
         ([key, label], i) =>
@@ -390,7 +392,7 @@ function agentEditor(id) {
       )
       .join(
         "",
-      )}</div><form id="agentForm" novalidate><section id="panel-profile" role="tabpanel" aria-labelledby="tab-profile"><fieldset class="avatar-choices"><legend>Choose a character</legend>${["researcher", "writer", "reviewer", "robot"].map((v) => `<label class="avatar-choice"><input type="radio" name="avatar" value="${v}" ${(a.avatar || "robot") === v ? "checked" : ""}><span class="avatar ${avatarClass(v)}" aria-hidden="true"></span><span>${v[0].toUpperCase() + v.slice(1)}</span></label>`).join("")}</fieldset><div class="form-grid">${field("name", "Name", "A short label, such as Picnic researcher.")}${field("role", "Role or specialty", "What is this helper good at? Used as CrewAI role.")}</div>${field("goal", "Goal", "The job this helper should achieve. Used as CrewAI goal.", true)}${field("purpose", "What is this helper for?", "Helps the agent understand its purpose.", true)}${field("backstory", "Context and characteristics", "Background, audience and expertise. Used in CrewAI backstory.", true)}${field("instructions", "Instructions and boundaries", "How should it work? Be concrete. These instructions are sent with its task.", true)}${field("expectedOutput", "Expected result", "Describe the answer you want. Used as the task expected output.", true)}<section class="panel"><h3>This agent's model</h3><label class="field">Connection<select name="agentConnection" id="agentConnection"><option value="chatgpt">ChatGPT · own authorized account</option><option value="api">API · own saved provider credentials</option></select></label><label class="field">Model name<input name="modelName" value="${esc(a.model.name)}" placeholder="Choose a model for this helper"></label><button type="button" id="agentModels">Load models for this connection</button><div id="agentModelList"></div><small>Each helper keeps its own model. A blank model is allowed in a saved draft, but real execution will ask you to select one.</small></section><details><summary>Teaching examples</summary><p>Examples show a style. They are clearly marked as examples, not the current goal or verified facts.</p>${field("exampleInput", "Example input", "", true)}${field("exampleOutput", "Example answer", "", true)}</details><details><summary>Advanced: model and behavior</summary><p>Optional model parameters are sent only when set. Model selection belongs to this agent.</p><div class="form-grid"><label class="field">Temperature (optional)<input type="number" step="0.1" min="0" max="2" name="temperature" value="${a.model.temperature ?? ""}"><small>Blank leaves the provider default. Some models reject temperature; a failed request is shown, never silently changed.</small></label><label class="field">Output token limit (optional)<input type="number" min="16" max="16000" name="maxOutputTokens" value="${a.model.maxOutputTokens ?? ""}"><small>Sent as max_output_tokens only when set. Check your model's supported limits.</small></label><label class="field">CrewAI context budget<input type="number" name="contextWindow" min="4096" max="2000000" value="${a.model.contextWindow ?? 32000}"><small>Used by CrewAI to manage long conversations. Set it to your model's actual capacity; this does not enlarge the model.</small></label>${[
+      )}</div><form id="agentForm" novalidate><section id="panel-profile" role="tabpanel" aria-labelledby="tab-profile"><fieldset class="avatar-choices"><legend>Choose a character</legend>${["researcher", "writer", "reviewer", "robot"].map((v) => `<label class="avatar-choice"><input type="radio" name="avatar" value="${v}" ${(a.avatar || "robot") === v ? "checked" : ""}><span class="avatar ${avatarClass(v)}" aria-hidden="true"></span><span>${v[0].toUpperCase() + v.slice(1)}</span></label>`).join("")}</fieldset><div class="form-grid">${field("name", "Name", "A short label, such as Picnic researcher.")}${field("role", "Role or specialty", "What is this helper good at? Used as CrewAI role.")}</div></section><section id="panel-job" role="tabpanel" aria-labelledby="tab-job" hidden><h3>What should this helper do?</h3>${field("goal", "Goal", "The job this helper should achieve. Used as CrewAI goal.", true)}${field("purpose", "What is this helper for?", "Helps the agent understand its purpose.", true)}${field("backstory", "Context and characteristics", "Background, audience and expertise. Used in CrewAI backstory.", true)}${field("instructions", "Instructions and boundaries", "How should it work? Be concrete. These instructions are sent with its task.", true)}${field("expectedOutput", "Expected result", "Describe the answer you want. Used as the task expected output.", true)}</section><section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden><section class="panel"><h3>This agent's model</h3><label class="field">Connection<select name="agentConnection" id="agentConnection"><option value="chatgpt">ChatGPT · own authorized account</option><option value="api">API · own saved provider credentials</option></select></label><label class="field">Model<select name="modelName" id="agentModel" aria-describedby="agentModelStatus"><option value="">Choose an available model</option>${a.model.name ? `<option value="${esc(a.model.name)}" selected>${esc(a.model.name)} · saved, availability not checked</option>` : ""}</select></label><p id="agentModelStatus" class="muted" role="status" aria-live="polite">Models load from this agent's connection when you open this step.</p><button type="button" id="agentModels">Refresh models</button><small class="model-hint">Each helper keeps its own model. A blank model is allowed in a saved draft, but real execution will ask you to select one.</small></section><details><summary>Teaching examples</summary><p>Examples show a style. They are clearly marked as examples, not the current goal or verified facts.</p>${field("exampleInput", "Example input", "", true)}${field("exampleOutput", "Example answer", "", true)}</details><details><summary>Advanced: model and behavior</summary><p>Optional model parameters are sent only when set. Model selection belongs to this agent.</p><div class="form-grid"><label class="field">Temperature (optional)<input type="number" step="0.1" min="0" max="2" name="temperature" value="${a.model.temperature ?? ""}"><small>Blank leaves the provider default. Some models reject temperature; a failed request is shown, never silently changed.</small></label><label class="field">Output token limit (optional)<input type="number" min="16" max="16000" name="maxOutputTokens" value="${a.model.maxOutputTokens ?? ""}"><small>Sent as max_output_tokens only when set. Check your model's supported limits.</small></label><label class="field">CrewAI context budget<input type="number" name="contextWindow" min="4096" max="2000000" value="${a.model.contextWindow ?? 32000}"><small>Used by CrewAI to manage long conversations. Set it to your model's actual capacity; this does not enlarge the model.</small></label>${[
       [
         "maxIterations",
         "Maximum work cycles",
@@ -448,53 +450,126 @@ function agentEditor(id) {
       )
       .join(
         "",
-      )}</section><div class="editor-footer">${a.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<button class="primary">Save agent</button></div></form>`,
+      )}</section><div class="editor-footer">${a.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<div class="editor-navigation"><button type="button" id="agentPrevious">← Back</button><button type="button" id="agentNext">Next →</button><button class="primary">Save agent</button></div></div></form>`,
   );
-  $("#agentConnection").value = a.model.connection || "chatgpt";
-  $("#agentModels").onclick = async () => {
+  const stepKeys = ["profile", "job", "settings", "tools", "skills", "mcps"];
+  let activeStep = 0,
+    modelRequest = 0;
+  const modelCache = new Map(),
+    selectedModels = new Map([
+      [a.model.connection || "chatgpt", a.model.name || ""],
+    ]);
+  const modelPicker = $("#agentModel"),
+    connectionPicker = $("#agentConnection"),
+    modelStatus = $("#agentModelStatus");
+  connectionPicker.value = a.model.connection || "chatgpt";
+  const showModels = (models, connection) => {
+    const saved = selectedModels.get(connection) || "";
+    const hasSaved = models.some((m) => m.id === saved);
+    modelPicker.innerHTML =
+      '<option value="">Choose an available model</option>' +
+      models
+        .map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`)
+        .join("") +
+      (!hasSaved && saved
+        ? `<option value="${esc(saved)}">${esc(saved)} · saved, not returned by this connection</option>`
+        : "");
+    modelPicker.value = saved;
+    modelStatus.textContent = models.length
+      ? `${models.length} available model${models.length === 1 ? "" : "s"} loaded from this connection.${saved && !hasSaved ? " The saved model was not returned; choose an available model before running." : ""}`
+      : "This connection returned no available models.";
+    modelStatus.className = "muted";
+  };
+  const loadModels = async (force = false) => {
+    const connection = connectionPicker.value,
+      request = ++modelRequest;
+    if (!force && modelCache.has(connection)) {
+      showModels(modelCache.get(connection), connection);
+      modelPicker.removeAttribute("aria-busy");
+      $("#agentModels").disabled = false;
+      return;
+    }
+    modelStatus.textContent = "Loading available models…";
+    modelStatus.className = "muted";
+    modelPicker.setAttribute("aria-busy", "true");
+    $("#agentModels").disabled = true;
     try {
-      const r = await api("models", {
-        connection: $("#agentConnection").value,
-      });
-      $("#agentModelList").innerHTML = r.models
-        .map(
-          (m) =>
-            `<button type="button" data-agent-model="${esc(m.id)}">${esc(m.name)}</button>`,
-        )
-        .join("");
-      document
-        .querySelectorAll("[data-agent-model]")
-        .forEach(
-          (b) =>
-            (b.onclick = () =>
-              ($('#agentForm [name="modelName"]').value =
-                b.dataset.agentModel)),
-        );
+      const response = await api("models", { connection });
+      if (request !== modelRequest || $("#agentModel") !== modelPicker) return;
+      const models = response.models.filter(
+        (m, i, all) =>
+          typeof m.id === "string" && all.findIndex((x) => x.id === m.id) === i,
+      );
+      modelCache.set(connection, models);
+      showModels(models, connection);
     } catch (e) {
-      toast(e.message);
+      if (request !== modelRequest || $("#agentModel") !== modelPicker) return;
+      const saved = selectedModels.get(connection) || "";
+      modelPicker.innerHTML =
+        '<option value="">Connect this account to load models</option>' +
+        (saved
+          ? `<option value="${esc(saved)}">${esc(saved)} · saved, availability not checked</option>`
+          : "");
+      modelPicker.value = saved;
+      modelStatus.textContent =
+        e.message +
+        (saved
+          ? " Your saved model has been kept."
+          : " Open Connection setup, then refresh this list.");
+      modelStatus.className = "danger";
+    } finally {
+      if (request === modelRequest && $("#agentModel") === modelPicker) {
+        modelPicker.removeAttribute("aria-busy");
+        $("#agentModels").disabled = false;
+      }
     }
   };
+  modelPicker.onchange = () =>
+    selectedModels.set(connectionPicker.value, modelPicker.value);
+  connectionPicker.onchange = () => {
+    const connection = connectionPicker.value,
+      saved = selectedModels.get(connection) || "";
+    modelPicker.innerHTML =
+      '<option value="">Choose an available model</option>' +
+      (saved
+        ? `<option value="${esc(saved)}">${esc(saved)} · saved, availability not checked</option>`
+        : "");
+    modelPicker.value = saved;
+    loadModels();
+  };
+  $("#agentModels").onclick = () => loadModels(true);
   const switchTab = (key) => {
+    activeStep = stepKeys.indexOf(key);
     document.querySelectorAll("[data-tab]").forEach((b) => {
       b.setAttribute("aria-selected", String(b.dataset.tab === key));
       b.tabIndex = b.dataset.tab === key ? 0 : -1;
     });
-    ["profile", "tools", "skills", "mcps"].forEach(
-      (k) => ($("#panel-" + k).hidden = k !== key),
-    );
+    stepKeys.forEach((k) => ($("#panel-" + k).hidden = k !== key));
+    $("#agentPrevious").disabled = activeStep === 0;
+    $("#agentNext").hidden = activeStep === stepKeys.length - 1;
+    if (key === "settings") loadModels();
+    $("#dialog").scrollTop = 0;
   };
   document.querySelectorAll("[data-tab]").forEach((b, i) => {
     b.onclick = () => switchTab(b.dataset.tab);
     b.onkeydown = (e) => {
       if (["ArrowRight", "ArrowLeft"].includes(e.key)) {
         e.preventDefault();
-        const keys = ["profile", "tools", "skills", "mcps"];
-        const next = keys[(i + (e.key === "ArrowRight" ? 1 : 3)) % 4];
+        const keys = stepKeys;
+        const next =
+          keys[
+            (i + (e.key === "ArrowRight" ? 1 : keys.length - 1)) % keys.length
+          ];
         switchTab(next);
         $("#tab-" + next).focus();
       }
     };
   });
+  $("#agentPrevious").onclick = () =>
+    switchTab(stepKeys[Math.max(0, activeStep - 1)]);
+  $("#agentNext").onclick = () =>
+    switchTab(stepKeys[Math.min(stepKeys.length - 1, activeStep + 1)]);
+  switchTab("profile");
   const collect = () => {
     const f = new FormData($("#agentForm"));
     const obj = {
@@ -520,7 +595,7 @@ function agentEditor(id) {
     obj.model = {
       mode: "custom",
       connection: f.get("agentConnection"),
-      name: f.get("modelName"),
+      name: modelPicker.value,
       temperature:
         f.get("temperature") === "" ? null : Number(f.get("temperature")),
       maxOutputTokens:
@@ -558,7 +633,11 @@ function agentEditor(id) {
       render();
       toast("Agent profile and permissions saved.");
     } catch (e) {
-      switchTab("profile");
+      const form = $("#agentForm");
+      if (!form.elements.name.value.trim() || !form.elements.role.value.trim())
+        switchTab("profile");
+      else if (!form.elements.goal.value.trim()) switchTab("job");
+      else switchTab("settings");
       toast(e.message);
     }
   };

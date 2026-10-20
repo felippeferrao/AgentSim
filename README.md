@@ -30,12 +30,16 @@ Open **http://127.0.0.1:8080**. Use `PORT=8081 ./start.sh` to change ports. The 
 
 When Home opens with no provider-verified connection, Connection setup opens automatically. A saved token/key is not presented as successful access: the backend checks the provider's models endpoint. Dismissing the dialog still allows configuration; real execution remains blocked until access is verified.
 
-**Agents** has Import setup / Export setup and a four-tab editor:
+**Agents** has Import setup / Export setup and six separate editor steps:
 
-1. **Profile** — character, name, role, goal, purpose, context, instructions, expected result, delimited teaching examples, **this agent's connection and model**, and explained advanced settings.
-2. **Tools** — explicit tool permissions.
-3. **Skills** — instruction packages; dependencies never grant tools silently.
-4. **MCPs** — each connection's individual discovered tools.
+1. **Identity** — choose a character, name and role.
+2. **Job** — goal, purpose, context, instructions and expected result.
+3. **Model & settings** — this agent's connection, automatically loaded model dropdown, teaching examples and advanced behavior/model settings.
+4. **Tools** — explicit tool permissions.
+5. **Skills** — instruction packages; dependencies never grant tools silently.
+6. **MCPs** — each connection's individual discovered tools.
+
+Back/Next preserve unsaved entries. Models reload when the selected connection changes; a failed lookup never invents available models.
 
 The approved Researcher, Writer, Reviewer and Robot characters are selectable and persisted. Profile fields and behavior settings map to actual CrewAI configuration, not decorative metadata. [Mapping and schema](KnowledgeBase/AGENT_PROFILES.md).
 
