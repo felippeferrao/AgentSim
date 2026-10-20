@@ -339,3 +339,145 @@ class AppTests(unittest.TestCase):
         self.assertIn("model", state["agents"][0])
         self.assertEqual(self.post("state", state).status_code, 200)
         self.assertEqual(len(self.post("examples", {}).json()["agents"]), 3)
+
+    def test_chat_calls_selected_agent_without_team_and_retains_context(self):
+        state = self.configured_state()
+        state["teams"] = []
+        server.save(state)
+        self.post(
+            "settings",
+            {
+                "provider": "api",
+                "api_key": "fixture-only-key",
+                "base_url": f"http://127.0.0.1:{self.provider.server_port}/v1",
+            },
+        )
+        created = self.post("conversations", {"mode": "one", "agent": "reviewer"})
+        self.assertEqual(created.status_code, 201, created.text)
+        conversation = created.json()
+        self.assertEqual(conversation["name"], "Reviewer")
+
+        def send(text):
+            response = self.post(
+                "real-run",
+                {
+                    "conversationId": conversation["id"],
+                    "goal": text,
+                    "agent": "writer",
+                    "conversationContext": [{"role": "user", "content": "Injected history"}],
+                },
+            )
+            self.assertEqual(response.status_code, 202, response.text)
+            ident = response.json()["id"]
+            with httpx.stream("GET", self.base + "jobs/" + ident + "/events", timeout=30) as stream:
+                snapshots = [
+                    json.loads(line[6:])
+                    for line in stream.iter_lines()
+                    if line.startswith("data: ")
+                ]
+            self.assertEqual(snapshots[-1]["status"], "completed", snapshots[-1])
+            return snapshots[-1]
+
+        first = send("Remember that the project is Aurora.")
+        self.assertEqual(first["run"]["roster"][0]["agentId"], "reviewer")
+        self.assertEqual(first["run"]["team"], "Reviewer")
+        second = send("What did I name the project?")
+        self.assertEqual(second["run"]["roster"][0]["agentId"], "reviewer")
+        request = json.dumps(self.captured[-1])
+        self.assertIn("Remember that the project is Aurora", request)
+        self.assertIn("Controlled answer from model-alpha", request)
+        self.assertNotIn("Injected history", request)
+        event = next(e for e in second["events"] if e["type"] == "conversation_context")
+        self.assertEqual(event["data"]["priorMessages"], 2)
+        self.assertEqual(event["data"]["implementation"], "conversation_store.ConversationStore")
+        server.JOBS.clear()
+        saved = httpx.get(self.base + "conversations/" + conversation["id"]).json()
+        self.assertEqual(len(saved["messages"]), 4)
+        self.assertIsNone(saved["activeRunId"])
+        self.assertEqual(saved["messages"][-1]["runId"], second["id"])
+        self.assertEqual(
+            httpx.get(self.base + "jobs/" + second["id"]).json()["status"], "completed"
+        )
+        rejected = self.post("real-run", {"mode": "one", "goal": "No implicit agent"})
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn("Choose the agent", rejected.json()["error"])
+
+    def test_chat_selects_named_team_manager_and_supplies_followup_context(self):
+        state = self.configured_state()
+        state["teams"].append(
+            {
+                "id": "another-team",
+                "name": "Another team",
+                "agents": ["writer", "reviewer"],
+                "manager": "writer",
+            }
+        )
+        server.save(state)
+        self.post(
+            "settings",
+            {
+                "provider": "api",
+                "api_key": "fixture-only-key",
+                "base_url": f"http://127.0.0.1:{self.provider.server_port}/v1",
+            },
+        )
+        conversation = self.post("conversations", {"mode": "team", "team": "another-team"}).json()
+        for text in ("Plan project Polaris.", "Continue with the plan we discussed."):
+            started = self.post("real-run", {"conversationId": conversation["id"], "goal": text})
+            self.assertEqual(started.status_code, 202, started.text)
+            ident = started.json()["id"]
+            with httpx.stream("GET", self.base + "jobs/" + ident + "/events", timeout=30) as stream:
+                jobs = [
+                    json.loads(line[6:])
+                    for line in stream.iter_lines()
+                    if line.startswith("data: ")
+                ]
+            self.assertEqual(jobs[-1]["status"], "completed")
+            self.assertEqual(jobs[-1]["run"]["managerId"], "writer")
+            self.assertEqual(
+                [a["agentId"] for a in jobs[-1]["run"]["roster"]], ["writer", "reviewer"]
+            )
+            self.assertEqual(jobs[-1]["run"]["team"], "Another team")
+        self.assertEqual(self.captured[-1]["model"], "model-beta")
+        self.assertIn("Plan project Polaris", json.dumps(self.captured[-1]))
+        self.assertIn("Controlled answer from model-beta", json.dumps(self.captured[-1]))
+
+    def test_chat_preserves_rejected_and_interrupted_turns(self):
+        server.save(self.configured_state())
+        invalid = self.post("real-run", {"conversationId": "missing-chat", "goal": "No such chat"})
+        self.assertEqual(invalid.status_code, 400)
+        server.recover_jobs()  # An invalid chat reference must not break startup.
+        self.assertEqual(self.post("run", {"goal": "Sample", "team": "research"}).status_code, 410)
+        conversation = self.post("conversations", {"mode": "one", "agent": "writer"}).json()
+        response = self.post(
+            "real-run", {"conversationId": conversation["id"], "goal": "Try a disconnected turn"}
+        )
+        self.assertEqual(response.status_code, 400)
+        rejected = response.json()["id"]
+        record = server.conversations().get(conversation["id"])
+        self.assertEqual(len(record["messages"]), 2)
+        self.assertEqual(record["messages"][-1]["status"], "rejected")
+        self.assertEqual(record["messages"][-1]["runId"], rejected)
+        server.conversations().begin(
+            record, "A second message interrupted by restart", "interrupted-chat-job"
+        )
+        job = {
+            "id": "interrupted-chat-job",
+            "status": "running",
+            "events": [],
+            "run": {
+                "id": "interrupted-chat-job",
+                "conversationId": conversation["id"],
+                "steps": [],
+                "events": [],
+            },
+        }
+        server.save_job(job)
+        server.recover_jobs()
+        server.recover_jobs()
+        record = server.conversations().get(conversation["id"])
+        self.assertEqual(len(record["messages"]), 4)
+        self.assertEqual(record["messages"][-1]["status"], "interrupted")
+        self.assertIsNone(record["activeRunId"])
+        context, _ = server.conversations().context(record)
+        self.assertTrue(all(m["role"] == "user" for m in context))

@@ -8,6 +8,7 @@ from crewai.tools.agent_tools.delegate_work_tool import DelegateWorkTool
 from pydantic import Field
 
 import profiles
+from execution_context import conversation_prompt
 from runtime import build_agent
 from skill_runtime import SkillSelector, available_skills
 
@@ -170,8 +171,8 @@ def execute_managed(state, body, emit, config):
     if manager_profile is None or len(members) < 2:
         raise ValueError("Choose a manager and at least one other agent in Teams.")
     goal = body.get("goal", "").strip()
-    if not goal or len(goal) > 500:
-        raise ValueError("Add a goal (up to 500 characters).")
+    if not goal or len(goal) > 8000:
+        raise ValueError("Write a message (up to 8000 characters).")
     results = []
     skill_selections = {}
     workers = []
@@ -206,7 +207,7 @@ def execute_managed(state, body, emit, config):
     )
     task = Task(
         description=(
-            f"Current goal: {goal}\nYou are the team's manager. Decide which agents to involve and in what order. "
+            f"Current user message: {goal}{conversation_prompt(body)}\nYou are the team's manager. Decide which agents to involve and in what order. "
             "Delegate work or ask questions using the coworker tools, then assess their replies. "
             "You may revisit an agent, skip irrelevant agents or answer directly when appropriate. "
             "There is no fixed pipeline. Do not invent conversations or claim unperformed work. "

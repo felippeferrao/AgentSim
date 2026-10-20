@@ -1,5 +1,17 @@
 # Delivery status — 2026-10-20, continued implementation
 
+## Latest: explicit targets, conversational execution and side-by-side inspection
+
+Watch & run now always uses connected AI models. Removed the Real AI / Educational samples selector, the Home educational entry point and the active sample-run API. Historic sample records remain identifiable. Choose Team or One agent first, then explicitly select the target. One-agent calls resolve any saved agent directly, including an agent outside every team, rather than the first team member.
+
+A persistent chat opens on the left; each message starts an automatic execution on the right. The chat and evidence panels scroll independently. Every message can reopen its own trace; the execution selector can inspect earlier turns. Existing public class/location/explanation, skill choice/reason, tool outputs, generated files and activity pulses remain. Live updates preserve open step inspectors, manual evidence scrolling and composer focus rather than recreating the entire page.
+
+SQLite conversations store user/assistant messages and their run ids. Follow-up tasks receive server-loaded public conversation context, for both single agents and team managers. Target/history overrides from clients are ignored. Saved chats and reload restore conversation/results; running jobs can reconnect to SSE. Failed, rejected and interrupted turns are persisted, with idempotent recovery. [API and context boundaries](CHAT_EXECUTION.md).
+
+Verification: 41 tests pass (21.036 seconds), including explicit non-first agent with no teams, selection of a second team and its actual manager, multi-turn context reaching the actual Responses request, ignored client history/target injection, persisted chat/job reload, rejected turns and restart interruption without duplicate replies. Ruff, JavaScript syntax and whitespace checks pass. Controlled local-provider browser verification covered Team chat → skill selection/delegation → actual PDF/Plotly generation → reply, follow-up message, per-message execution selection, reload and a separate Writer chat with only Writer running. This is controlled inference evidence, not a new live external account run.
+
+The actual port8080 server and user's in-app tab were updated. One agent lists all four currently saved agents, including Billy; Billy's empty chat was opened and is ready for the user's message. No user profile, team, grant or credential was edited and no message/inference was sent on the user's behalf. Proof: design/chat-billy.png (actual app) and design/chat-execution-fixture.png (controlled execution). Earlier sections describe prior revisions.
+
 ## Latest: integration harness, skills, plugins and execution history
 
 Implemented the requested Web Research, PDF Generator, Image Generator adapter and Plotly Chart Generator alongside Calculator. Generated files appear in Watch & run and persistent Execution history, with preview/open/download links. Plotly creates self-contained interactive HTML, 3200x2000 PNG and SVG; PDF uses ReportLab. The image adapter has its own dynamically loaded image-model configuration and protected API key, preserving agents' existing ChatGPT account.

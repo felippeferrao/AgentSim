@@ -66,3 +66,12 @@ Harness integration verification (2026-10-20, latest)
 - Streaming regression: collect response.output_item.done when terminal response.completed.output is empty; require completed terminal, never log raw private deltas.
 - Restarted actual8080 and reloaded user tab; Tools5, image model configuration, Skills View/Remove, plugin ZIP/key form and History visibly present. Existing profile data not edited.
 - screenshots: design/harness-tools.png (actual app); design/harness-history-fixture.png (controlled test app).
+
+Chat workspace verification (2026-10-20)
+- Full automated suite: 41 tests passed; controlled Responses + real CrewAI/SSE/SQLite.
+- Arbitrary explicit agent with no teams; second selected team's manager; follow-up public context actually present in provider requests; target/history overrides ignored.
+- Chat rejection/interruption persistence and idempotent startup recovery; prior execution retrieval after clearing in-process jobs.
+- Browser port8081: Team chat triggers skill selection/delegation, actual PDF/Plotly, final chat reply; second message has separate selectable execution; reload retains chat; Writer selection runs only Writer.
+- Chat and right execution panel scroll independently. Step inspect shows class, where and evidence next to chat. Existing style retained.
+- Actual8080: removed sample selector; all four current agents available including Billy; opened empty Billy chat without sending a message or altering profiles/grants.
+- Proof screenshots: design/chat-billy.png (actual), design/chat-execution-fixture.png (controlled provider).

@@ -41,3 +41,9 @@ Latest profile navigation refinement: split the original step 1 into Identity (c
 - Persist every run and public execution stage, including failed/interrupted runs, with explanatory evidence, execution location and responsible implementation class.
 - Interpret MCP plugin ZIP uploads plus locally entered access keys. Preview the manifest and executable entry points; discover tools automatically but retain explicit tool grants.
 - Document the harness contract, classes, future integration workflow, supported plugin formats and provider prerequisites in the project knowledge base.
+
+## Conversational execution refinement
+
+- Execution is always real AI; remove the educational/real selector.
+- Choose Team or One agent, then explicitly choose the actual saved target. Individual agents work independently of team membership.
+- Open a persistent interactive chat on the left. Every user message triggers execution whose steps/results appear on the right, with scrolling and per-step inspection of the previously required evidence.

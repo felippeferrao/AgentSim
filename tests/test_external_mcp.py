@@ -173,7 +173,12 @@ class ExternalMCPTests(unittest.TestCase):
         with patch.object(ResponsesLLM, "call", scripted):
             steps = execute(
                 state,
-                {"goal": "Count two fruit", "team": "research", "mode": "one"},
+                {
+                    "goal": "Count two fruit",
+                    "team": "research",
+                    "mode": "one",
+                    "agent": "researcher",
+                },
                 lambda k, d: events.append((k, d)),
                 config={"provider": "api", "model": "fixture"},
             )

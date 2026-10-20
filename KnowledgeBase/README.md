@@ -13,3 +13,5 @@ This folder is the source of project requirements and delivery truth. It is not 
 - [OAuth configuration review and human verification](OAUTH_REVIEW.md)
 
 - [Harness integrations, skills, plugins and execution evidence](HARNESS_INTEGRATIONS.md)
+
+- [Chat execution, target selection and conversation context](CHAT_EXECUTION.md)

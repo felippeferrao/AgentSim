@@ -1,15 +1,18 @@
 let state,
   page = "Home",
   run = null,
-  step = -1,
   mode = "team",
-  selected = 0,
-  executionMode = "real",
   connectionState = { ready: false },
   busy = false,
   activeTeamId = "",
+  architectureTeamId = "",
   selectedAgentId = null,
-  goalDraft = "Explain how a team can plan a picnic.";
+  activeAgentId = "",
+  activeConversation = null,
+  conversationList = [],
+  messageDraft = "",
+  streamJobId = null;
+const expandedExecutionDetails = new Set();
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
     String(s ?? "").replace(
@@ -36,7 +39,11 @@ async function api(path, data) {
       : {},
   );
   const v = await r.json();
-  if (!r.ok) throw Error(v.error);
+  if (!r.ok) {
+    const error = Error(v.error);
+    error.executionId = v.id;
+    throw error;
+  }
   return v;
 }
 function toast(t) {
@@ -87,6 +94,7 @@ function nav() {
   );
 }
 function render() {
+  $("#main").classList.toggle("chat-page", page === "Watch & run");
   nav();
   if (page === "Home") dashboard();
   else if (page === "Watch & run") home();
@@ -141,7 +149,7 @@ function dashboard() {
     ],
   ];
   $("#main").innerHTML =
-    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Load example team"}</button><button id="goWatch">Watch & run →</button><button id="educationalDemo">Educational samples (optional)</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}">${dashboardArt(name)}<span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>1. Create an agent or load examples. 2. Choose its job and permissions. 3. Pick a team in Watch & run. Demo shows samples. Real AI needs your own connection.</p><button id="dashboardConnect">Connection setup</button></section>`;
+    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Load example team"}</button><button id="goWatch">Watch & run →</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}">${dashboardArt(name)}<span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>1. Create an agent or load examples. 2. Choose its job and permissions. 3. Choose a team or agent in Watch & run and start a conversation.</p><button id="dashboardConnect">Connection setup</button></section>`;
   document.querySelectorAll("[data-open]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -163,11 +171,6 @@ function dashboard() {
       toast(e.message);
     }
   };
-  $("#educationalDemo").onclick = () => {
-    executionMode = "demo";
-    page = "Watch & run";
-    render();
-  };
   $("#goWatch").onclick = () => {
     page = "Watch & run";
     render();
@@ -175,7 +178,7 @@ function dashboard() {
   $("#dashboardConnect").onclick = connection;
 }
 function usageLabel(r, until = Infinity) {
-  if (!r) return executionMode === "demo" ? "0 sample tokens" : "Not reported";
+  if (!r) return "Not reported";
   const steps = r.steps.slice(0, until + 1);
   if (!steps.length) return "Not reported";
   if (
@@ -226,99 +229,224 @@ function liveAgentCard(a, managerId) {
     usage.every((s) => s.inputTokens != null && s.outputTokens != null);
   return `<article class="agent live-agent activity-${status} ${selectedAgentId === id ? "selected" : ""}" data-agent="${esc(id)}" tabindex="0" role="button" aria-label="Inspect ${esc(a.agent)}"><span class="agent-kind">${id === managerId ? "Team manager" : "Agent"}</span><div class="live-avatar"><div class="avatar ${avatarClass(a.avatar)}" aria-hidden="true"></div></div><h2>${esc(a.agent)}</h2><span class="badge"><span class="activity-dot" aria-hidden="true"></span>${labels[status]}</span><p>${esc(state.agents.find((x) => x.id === id)?.role || "Saved agent")}</p><small>${usage.length} completed task${usage.length === 1 ? "" : "s"}${known ? ` · ${usage.reduce((n, s) => n + s.inputTokens + s.outputTokens, 0)} tokens` : ""}</small></article>`;
 }
+function chatTarget() {
+  return mode === "one"
+    ? state.agents.find((a) => a.id === activeAgentId)
+    : state.teams.find((t) => t.id === activeTeamId);
+}
+function conversationTurns() {
+  return (activeConversation?.messages || []).filter((m) => m.role === "user");
+}
+function resetConversation() {
+  activeConversation = null;
+  run = null;
+  selectedAgentId = null;
+  messageDraft = "";
+  localStorage.removeItem("agentsim-conversation");
+  realWatch();
+}
 function realWatch() {
-  const team = state.teams.find((t) => t.id === activeTeamId) || state.teams[0];
-  activeTeamId = team?.id || "";
-  const managerId = run?.managerId ?? (mode === "team" ? team?.manager : null);
-  const members =
-    run?.roster ||
-    (team?.agents || [])
-      .slice(0, mode === "one" ? 1 : 100)
-      .map((id) => state.agents.find((a) => a.id === id))
-      .filter(Boolean)
-      .map((a) => ({ agentId: a.id, agent: a.name, avatar: a.avatar }));
-  const manager = members.find((a) => a.agentId === managerId);
-  const workers = members.filter((a) => a.agentId !== managerId);
-  const inspected =
-    members.find((a) => a.agentId === selectedAgentId) ||
-    members.find((a) => agentActivity(a.agentId) === "active") ||
-    manager ||
-    members[0];
-  const history = (run?.steps || []).filter(
-    (s) => s.agentId === inspected?.agentId,
-  );
-  const last = history.at(-1);
-  const currentTask = (run?.events || []).findLast(
-    (e) => e.type === "agent_started" && e.data.agentId === inspected?.agentId,
-  )?.data;
-  const activity = inspected && agentActivity(inspected.agentId);
-  const scroll = $("#conversation")?.scrollTop || 0;
-  const follow =
-    !$("#conversation") ||
-    $("#conversation").scrollHeight - scroll - $("#conversation").clientHeight <
-      90;
-  const route = (run?.events || []).findLast((e) =>
-    ["delegation", "reply"].includes(e.type),
-  );
+  const target = chatTarget();
+  const options = mode === "one" ? state.agents : state.teams;
+  const targetId = mode === "one" ? activeAgentId : activeTeamId;
+  $("#main").classList.add("chat-page");
   $("#main").innerHTML =
-    `<h1>Watch your team work</h1><p class="subtitle">Follow the manager's decisions and the agents' conversations live.</p>${run?.failed ? `<section class="panel danger" role="alert">${esc(run.error)}</section>` : ""}<div class="toolbar"><select aria-label="Run type" id="executionMode" ${busy ? "disabled" : ""}><option value="real">Real AI · live</option><option value="demo">Educational samples · optional</option></select><select aria-label="Team" id="team" ${busy ? "disabled" : ""}>${state.teams.map((t) => `<option value="${esc(t.id)}" ${t.id === activeTeamId ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select><button id="teamMode" class="${mode === "team" ? "primary" : ""}" ${busy ? "disabled" : ""}>Team</button><button id="one" class="${mode === "one" ? "primary" : ""}" ${busy ? "disabled" : ""}>One agent</button><button id="configureTeam" ${busy ? "disabled" : ""}>Configure manager</button></div><div class="panel goal-panel"><label for="goal">Your goal</label><div class="goal-actions"><input id="goal" maxlength="500" value="${esc(run?.goal || goalDraft)}" ${busy ? "disabled" : ""}><button class="orange" id="start" ${busy || !members.length ? "disabled" : ""}>${busy ? "Running…" : run ? "Run again" : "Run with AI"}</button></div></div><div class="layout live-layout"><div><section class="panel orchestration-panel"><div class="section-heading"><div><h2>${manager ? "Manager-led orchestration" : mode === "one" ? "Single agent" : "Choose your team manager"}</h2><p class="muted">${manager ? "The manager chooses who to involve and when. Agents can be called more than once." : mode === "one" ? "Watch this agent complete your goal." : "Open Configure manager to select who coordinates this team."}</p></div><span class="badge ${busy ? "working" : ""}">${busy ? "● Live" : run?.failed ? "Failed" : run?.completed ? "Complete" : "Ready"}</span></div>${manager ? `<div class="delegation-route ${busy && route ? "live-route" : ""}">${route ? `${esc(route.data.from)} → ${esc(route.data.to)} · ${route.type === "reply" ? "reply" : "task / question"}` : "↕ The manager chooses assignments; agents return their results"}</div>` : ""}<div class="orchestration-board">${manager ? liveAgentCard(manager, managerId) : ""}${workers.map((a) => liveAgentCard(a, managerId)).join("")}</div><p class="legend"><span class="activity-dot"></span> A pulsing card is executing. “Waiting for a reply” means work was delegated. Agents not selected by the manager stay idle.</p></section>${artifactCards()}<section class="panel"><div class="section-heading"><h2>Live conversation & execution steps</h2><span>${run?.events?.filter((e) => e.type === "delegation").length || 0} delegations</span></div><div id="conversation" class="conversation" role="log" aria-live="polite" aria-relevant="additions">${interactionTimeline()}</div><small>Actual tasks, questions and replies. Internal model reasoning is never displayed.</small>${run?.completed ? '<p class="run-complete">✓ Run complete. The final answer and conversation are saved.</p>' : ""}</section></div><div class="inspector"><section class="panel"><h2>Inspect an agent</h2><h3>${esc(inspected?.agent || "Choose an agent")}</h3><p>${esc(inspected?.agentId === managerId ? "Coordinates the team and combines its results." : "Select a card to inspect the task and answer.")}</p><details open><summary>Task received</summary><p>${esc((inspected?.agentId === managerId ? run?.goal || goalDraft : currentTask?.task || last?.input) || "No task assigned yet.")}</p></details><details open><summary>Answer</summary><p>${esc(activity === "active" ? "Working on the current task…" : last?.output || "No completed answer yet.")}</p></details><small>Model: ${esc(last?.model || state.agents.find((a) => a.id === inspected?.agentId)?.model?.name || "Choose in agent settings")}</small></section><section class="panel"><h2>Provider usage</h2><p>${usageLabel(run, run?.steps.length || 0)}</p><p>${run?.events?.filter((e) => e.type === "tool_completed").length || 0} tool calls completed</p><small>Usage comes from the provider. Missing usage stays unavailable.</small></section></div></div>`;
-  const conversation = $("#conversation");
-  conversation.scrollTop = follow ? conversation.scrollHeight : scroll;
-  $("#goal").oninput = (e) => (goalDraft = e.target.value);
-  $("#team").onchange = (e) => {
-    activeTeamId = e.target.value;
-    run = null;
-    selectedAgentId = null;
-    realWatch();
+    `<h1>Watch & run</h1><p class="subtitle">Chat with your team or agent. Follow each execution on the right.</p>
+    <section class="panel chat-setup"><div class="target-mode" role="group" aria-label="Who to call"><button id="teamMode" aria-pressed="${mode === "team"}" class="${mode === "team" ? "primary" : ""}" ${busy ? "disabled" : ""}>Team</button><button id="one" aria-pressed="${mode === "one"}" class="${mode === "one" ? "primary" : ""}" ${busy ? "disabled" : ""}>One agent</button></div>
+    <label class="target-label">${mode === "one" ? "Agent" : "Team"}<select id="executionTarget" aria-label="${mode === "one" ? "Agent to call" : "Team to call"}" ${busy ? "disabled" : ""}><option value="">Choose ${mode === "one" ? "an agent" : "a team"}</option>${options.map((t) => `<option value="${esc(t.id)}" ${t.id === targetId ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label>
+    <button id="openChat" ${busy || !target ? "disabled" : ""}>${activeConversation ? "New chat" : "Open chat"}</button>
+    ${mode === "team" && target && !target.manager ? '<button id="configureTeam">Choose manager</button>' : ""}
+    ${conversationList.length ? `<label class="saved-chat-label">Saved chats<select id="savedChat" aria-label="Saved chats" ${busy ? "disabled" : ""}><option value="">Open a conversation</option>${conversationList.map((c) => `<option value="${esc(c.id)}" ${c.id === activeConversation?.id ? "selected" : ""}>${esc(c.name)} · ${esc(new Date(c.updatedAt * 1000).toLocaleString())}</option>`).join("")}</select></label>` : ""}</section>
+    <div class="chat-workspace"><section class="panel user-chat" aria-label="Conversation"><div class="section-heading"><div><h2>${esc(activeConversation?.name || target?.name || "Your conversation")}</h2><small>${activeConversation ? "Messages are saved. Follow-up messages retain conversation context." : "Choose Team or One agent, select a name and open the chat."}</small></div></div>
+    <div id="chatMessages" class="chat-messages" role="log" aria-label="Chat messages" aria-live="polite"></div>
+    <form id="chatForm" class="chat-composer"><label for="chatMessage">Message</label><textarea id="chatMessage" placeholder="What would you like to do?" maxlength="8000" rows="3" ${!activeConversation || busy ? "disabled" : ""}>${esc(messageDraft)}</textarea><div><small>Enter to send · Shift+Enter for a new line</small><button class="orange" id="sendMessage" ${!activeConversation || busy ? "disabled" : ""}>${busy ? "Working…" : "Send"}</button></div></form></section>
+    <section class="panel execution-column" aria-label="Execution details"><div class="section-heading"><h2>Execution</h2><span class="badge ${busy ? "working" : ""}" id="executionStatus">${busy ? "● Live" : run?.failed ? "Failed" : run?.completed ? "Complete" : "Ready"}</span></div><div id="turnPicker"></div><div id="liveAgents" class="chat-agent-strip"></div><div id="executionScroll" class="execution-scroll" tabindex="0" aria-label="Scrollable execution steps"><div id="executionSteps"></div><div id="executionArtifacts"></div></div><small id="executionUsage"></small></section></div>`;
+  $("#teamMode").onclick = () => {
+    if (mode !== "team") {
+      mode = "team";
+      resetConversation();
+    }
   };
   $("#one").onclick = () => {
-    mode = "one";
-    run = null;
-    realWatch();
+    if (mode !== "one") {
+      mode = "one";
+      resetConversation();
+    }
   };
-  $("#teamMode").onclick = () => {
-    mode = "team";
-    run = null;
-    realWatch();
+  $("#executionTarget").onchange = (e) => {
+    if (mode === "one") activeAgentId = e.target.value;
+    else activeTeamId = e.target.value;
+    resetConversation();
   };
-  $("#executionMode").onchange = (e) => {
-    executionMode = e.target.value;
-    run = null;
-    step = -1;
-    home();
-  };
-  $("#configureTeam").onclick = () =>
-    team ? editor("teams", team.id) : editor("teams");
-  document.querySelectorAll("[data-agent]").forEach((card) => {
-    const inspect = () => {
-      selectedAgentId = card.dataset.agent;
+  if ($("#configureTeam"))
+    $("#configureTeam").onclick = () => editor("teams", target.id);
+  $("#openChat").onclick = async () => {
+    try {
+      activeConversation = await api("conversations", {
+        mode,
+        team: activeTeamId,
+        agent: activeAgentId,
+      });
+      localStorage.setItem("agentsim-conversation", activeConversation.id);
+      conversationList = await api("conversations");
+      run = null;
+      messageDraft = "";
       realWatch();
-    };
-    card.onclick = inspect;
-    card.onkeydown = (e) => {
-      if (["Enter", " "].includes(e.key)) {
-        e.preventDefault();
-        inspect();
-      }
-    };
-  });
-  $("#start").onclick = async () => {
-    if (mode === "team" && !team?.manager) {
-      toast("Choose the team's manager first.");
-      editor("teams", team?.id);
-      return;
+      $("#chatMessage").focus();
+    } catch (e) {
+      toast(e.message);
     }
-    goalDraft = $("#goal").value;
-    await refreshConnection();
-    if (!connectionState.ready) {
-      await connection();
-      return;
-    }
-    await realRun({ goal: goalDraft, team: team.id, mode });
   };
+  if ($("#savedChat"))
+    $("#savedChat").onchange = (e) => {
+      if (e.target.value)
+        loadConversation(e.target.value).catch((err) => toast(err.message));
+    };
+  $("#chatMessage").oninput = (e) => {
+    messageDraft = e.target.value;
+  };
+  $("#chatMessage").onkeydown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      $("#chatForm").requestSubmit();
+    }
+  };
+  $("#chatForm").onsubmit = async (e) => {
+    e.preventDefault();
+    if (busy || !activeConversation || !messageDraft.trim()) return;
+    await realRun({
+      conversationId: activeConversation.id,
+      goal: messageDraft.trim(),
+    });
+  };
+  renderChatMessages();
+  renderTurnPicker();
+  updateExecution();
+}
+function renderChatMessages() {
+  const el = $("#chatMessages");
+  if (!el) return;
+  const old = el.scrollTop,
+    follow = el.scrollHeight - old - el.clientHeight < 90;
+  el.innerHTML =
+    (activeConversation?.messages || [])
+      .map(
+        (m) =>
+          `<article class="chat-bubble ${m.role === "user" ? "from-user" : "from-agent"} ${["failed", "interrupted", "rejected"].includes(m.status) ? "chat-error" : ""}"><b>${esc(m.role === "user" ? "You" : m.name || activeConversation.name)}</b><p>${esc(m.content)}</p>${m.role === "assistant" ? `<button class="message-evidence" data-turn="${esc(m.runId)}">Inspect this execution →</button>` : ""}</article>`,
+      )
+      .join("") ||
+    '<div class="chat-empty"><h3>Start a conversation</h3><p>Send a message. The selected agent or team will reply here, while actions and results appear alongside.</p></div>';
+  if (busy)
+    el.innerHTML +=
+      '<div class="chat-bubble from-agent" role="status">Working on your message… Follow the execution on the right.</div>';
+  el.scrollTop = follow ? el.scrollHeight : old;
+  el.querySelectorAll("[data-turn]").forEach(
+    (b) => (b.onclick = () => selectExecution(b.dataset.turn)),
+  );
+}
+function renderTurnPicker() {
+  const turns = conversationTurns();
+  if (!$("#turnPicker")) return;
+  $("#turnPicker").innerHTML = turns.length
+    ? `<label class="turn-label">Message execution<select id="executionTurn" aria-label="Message execution">${turns.map((m, i) => `<option value="${esc(m.runId)}" ${m.runId === run?.id ? "selected" : ""}>${i + 1}. ${esc(m.content.slice(0, 65))}</option>`).join("")}</select></label>`
+    : "";
+  if ($("#executionTurn"))
+    $("#executionTurn").onchange = (e) => selectExecution(e.target.value);
+}
+async function selectExecution(id) {
+  try {
+    const job = await api("jobs/" + id);
+    run = {
+      ...job.run,
+      failed: ["failed", "interrupted", "rejected"].includes(job.status),
+      error: job.error,
+    };
+    renderTurnPicker();
+    updateExecution(true);
+  } catch (e) {
+    toast(e.message);
+  }
+}
+function updateExecution(resetScroll = false) {
+  if (!$("#executionSteps")) return;
+  const box = $("#executionScroll"),
+    old = box.scrollTop;
+  const follow = resetScroll || box.scrollHeight - old - box.clientHeight < 90;
+  const contentKey = `${run?.id}:${run?.events?.length || 0}`;
+  $("#executionStatus").textContent = run?.failed
+    ? "Failed"
+    : run?.completed
+      ? "Complete"
+      : busy
+        ? "● Live"
+        : "Ready";
+  const roster = run?.roster || [];
+  $("#liveAgents").innerHTML = roster
+    .map((a) => liveAgentCard(a, run?.managerId))
+    .join("");
+  if ($("#executionSteps").dataset.contentKey !== contentKey) {
+    $("#executionSteps").innerHTML = interactionTimeline(run);
+    $("#executionSteps").dataset.contentKey = contentKey;
+    $("#executionSteps")
+      .querySelectorAll("details")
+      .forEach((d, i) => {
+        const key = `${run?.id}:${i}`;
+        d.open = expandedExecutionDetails.has(key);
+        d.ontoggle = () => {
+          if (d.open) expandedExecutionDetails.add(key);
+          else expandedExecutionDetails.delete(key);
+        };
+      });
+  }
+  const artifactsKey = (run?.events || [])
+    .filter((e) => e.type === "artifact_created")
+    .map((e) => e.data.id)
+    .join();
+  if ($("#executionArtifacts").dataset.contentKey !== artifactsKey) {
+    $("#executionArtifacts").innerHTML = artifactCards(run);
+    $("#executionArtifacts").dataset.contentKey = artifactsKey;
+  }
+  $("#executionUsage").textContent =
+    `Provider usage: ${usageLabel(run)} · ${(run?.events || []).filter((e) => e.type === "tool_completed").length} completed tool calls`;
+  box.scrollTop = follow ? box.scrollHeight : old;
+  document.querySelectorAll("[data-agent]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        const events = [
+          ...$("#executionSteps").querySelectorAll(".trace-event"),
+        ];
+        const index = (run?.events || []).findLastIndex(
+          (e) => e.data.agentId === b.dataset.agent,
+        );
+        if (index >= 0)
+          events[index]?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+      }),
+  );
+}
+async function loadConversation(id) {
+  activeConversation = await api("conversations/" + id);
+  mode = activeConversation.mode;
+  if (mode === "one") activeAgentId = activeConversation.targetId;
+  else activeTeamId = activeConversation.targetId;
+  localStorage.setItem("agentsim-conversation", id);
+  const latest =
+    activeConversation.activeRunId || conversationTurns().at(-1)?.runId;
+  run = latest ? (await api("jobs/" + latest)).run : null;
+  messageDraft = "";
+  if (page === "Watch & run") realWatch();
+  if (activeConversation.activeRunId && streamJobId !== latest) {
+    busy = true;
+    if (page === "Watch & run") realWatch();
+    followExecution(latest).catch((e) => toast(e.message));
+  }
 }
 function architecture() {
-  const team = state.teams.find((t) => t.id === activeTeamId) || state.teams[0];
+  const team =
+    state.teams.find((t) => t.id === (architectureTeamId || activeTeamId)) ||
+    state.teams[0];
   const manager = state.agents.find((a) => a.id === team?.manager);
   const node = (x, y, w, title, sub) =>
     `<g><rect x="${x}" y="${y}" width="${w}" height="76" rx="12"/><text x="${x + w / 2}" y="${y + 29}" text-anchor="middle" class="node-title">${esc(title)}</text><text x="${x + w / 2}" y="${y + 53}" text-anchor="middle">${esc(sub)}</text></g>`;
@@ -337,9 +465,7 @@ function architecture() {
         "",
       )}</div></div><p class="muted">This diagram describes the saved configuration. Watch & run shows which agents are actually involved in each execution. Single-agent mode bypasses team management.</p><button id="architectureWatch" class="primary">Watch & run →</button></section>`;
   $("#architectureTeam").onchange = (e) => {
-    activeTeamId = e.target.value;
-    run = null;
-    selectedAgentId = null;
+    architectureTeamId = e.target.value;
     architecture();
   };
   $("#architectureWatch").onclick = () => {
@@ -349,125 +475,7 @@ function architecture() {
 }
 
 function home() {
-  if (executionMode === "real") return realWatch();
-  const teamId = $("#team")?.value || state.teams[0]?.id;
-  const members = run
-    ? run.steps
-    : (state.teams.find((t) => t.id === teamId)?.agents || [])
-        .map((id) => state.agents.find((a) => a.id === id))
-        .filter(Boolean)
-        .slice(0, mode === "one" ? 1 : 100)
-        .map((a) => ({ agent: a.name, agentId: a.id, avatar: a.avatar }));
-  const current =
-    run?.steps[Math.max(0, Math.min(selected, run.steps.length - 1))];
-  $("#main").innerHTML =
-    `<h1>Watch your team work</h1>${run?.failed ? `<section class="panel danger" role="alert">${esc(run.error)}</section>` : ""}<p class="subtitle">See who does what, one step at a time.</p><div class="layout"><div><div class="toolbar"><select aria-label="Run type" id="executionMode"><option value="real">Real AI · automatic</option><option value="demo">Educational samples · optional</option></select><select aria-label="Team" id="team">${state.teams.map((t) => `<option value="${esc(t.id)}" ${t.id === teamId ? "selected" : ""}>♟ Team: ${esc(t.name)}</option>`).join("")}</select><div><button id="one" class="${mode === "one" ? "primary" : ""}">One agent</button><button id="teamMode" class="${mode === "team" ? "primary" : ""}">Team</button></div><button class="orange" id="start" ${busy ? "disabled" : ""}>▶ ${busy ? "Working…" : run ? "Run again" : executionMode === "demo" ? "Start demo" : "Run with AI"}</button></div><div class="steps"><span><b class="circle">1</b>Set a goal</span>→<span><b class="circle">2</b>Pick agents</span>→<span><b class="circle">3</b>Watch & learn</span></div><div class="panel"><label for="goal">Your goal</label><input id="goal" maxlength="500" value="${esc(run?.goal || "Explain how a team can plan a picnic.")}" style="margin:8px 0 18px"><div class="cards">${members.map((a, i) => `${i ? `<span class="handoff">${run && i <= step ? `<small>${esc(run.provider === "demo" ? "Here are the sample facts." : run.steps[i - 1]?.output.slice(0, 65))}</small>` : ""}<span class="arrow">→</span></span>` : ""}<article class="agent ${i === selected ? "selected" : ""}" data-step="${i}" tabindex="0" role="button" aria-label="Learn about ${esc(a.agent)}"><div class="avatar ${avatarClass(a.avatar || state.agents.find((x) => x.id === a.agentId)?.avatar)}" aria-hidden="true"></div><h2>${esc(a.agent)}</h2>${state.agents.find((x) => x.id === a.agentId)?.example ? '<small class="muted">Example configuration</small>' : ""}<span class="badge ${i < step ? "done" : i === step ? "working" : ""}">${i < step ? "✓ Done" : run?.failed && i === step ? "× Failed" : i === step ? "● Working" : "◷ Waiting"}</span><p>${esc(state.agents.find((x) => x.id === a.agentId)?.job || "Saved agent")}</p><div class="tokens">${run && i <= step ? (run.provider === "demo" ? `Sample input ${run.steps[i].sampleInput} · output ${run.steps[i].sampleOutput}` : `Input ${run.steps[i].inputTokens ?? "—"} · output ${run.steps[i].outputTokens ?? "—"} tokens`) : "Tokens: no provider usage"}</div></article>`).join("") || "<p>Add agents to a team to begin.</p>"}</div></div><div class="panel usage"><span>▤ ${(run?.provider || executionMode) === "demo" ? "Sample usage" : "Provider usage"}: <b>${usageLabel(run, step)}</b></span><span>${run?.events?.filter((e) => e.type === "tool_completed").length || 0} real tool calls</span><span>${esc(run?.provider || executionMode)} ${busy ? "• Working…" : ""}</span></div><div class="panel"><h2>What is happening?</h2>${
-      run
-        ? run.steps
-            .slice(0, step + 1)
-            .map(
-              (s, i) =>
-                `<div class="event"><b>Step ${i + 1} · ${esc(s.agent)} ${i === step ? "is working" : run.provider === "demo" ? "shared a sample" : "shared a result"}</b><p>${esc(i === step ? (run.provider === "demo" ? "Press Next step to pass the result along." : "This agent is working. Results appear automatically.") : s.output)}</p></div>`,
-            )
-            .join("")
-        : '<p class="muted">Choose a team and a goal. Real work advances automatically; the optional sample lesson has its own controls.</p>'
-    }${
-      run?.events
-        ?.filter((e) => e.type === "tool_completed")
-        .map(
-          (e) =>
-            `<div class="event"><b>Tool: ${esc(e.data.name)}</b><p>${esc(e.data.output)}</p></div>`,
-        )
-        .join("") || ""
-    }${run && step >= run.steps.length ? `<b>✓ ${run.provider === "demo" ? "Sample lesson complete." : "Real run complete."} Everyone has shared their result.</b>` : ""}</div></div><div class="inspector"><section class="panel"><h2>Learn this step</h2>${[
-      ["What went in", current?.input],
-      [
-        "What came out",
-        current && selected <= step
-          ? current.output
-          : "This step has not completed its answer yet.",
-      ],
-      [
-        "Why this step?",
-        current?.why ||
-          "Teaching explanation: agents share small jobs and pass results to each other. This describes the setup, not private thoughts.",
-      ],
-    ]
-      .map(
-        ([title, text], i) =>
-          `<details ${i === 2 ? "open" : ""}><summary>${title}</summary><p>${esc(text || "Run the team to inspect this step.")}</p></details>`,
-      )
-      .join(
-        "",
-      )}<small>Outputs and teaching explanations. No private internal thoughts.</small></section><section class="panel"><h2>Give your agent a job</h2><h3>${esc(current?.agent || members[0]?.agent || "Your agent")}</h3><p class="muted">${esc(state.agents.find((a) => a.id === (current?.agentId || members[0]?.agentId))?.job || "Choose an agent to begin.")}</p><p class="muted">Model: ${esc(current?.model || state.agents.find((a) => a.id === (current?.agentId || members[0]?.agentId))?.model?.name || "Choose in Profile")}</p><button id="editAgents">Edit job & permissions</button><p>${current ? `Tools: ${esc(current.assignments?.tools?.join(", ") || "None")}<br>Skills: ${esc(current.assignments?.skills?.join(", ") || "None")}<br>MCP: ${esc(current.assignments?.mcp?.join(", ") || "None")}` : "Choose tools, skills and MCP tools in Agents."}</p>${executionMode === "demo" ? `<button class="purple" id="next" ${!run || busy || step >= run.steps.length ? "disabled" : ""}>Next step →</button>` : '<p class="muted">Real AI runs automatically. Watch completed steps appear here.</p>'}<button id="compare" style="width:100%;margin-top:12px">◫ Compare runs</button></section></div></div>`;
-  $("#executionMode").value = executionMode;
-  $("#executionMode").onchange = () => {
-    executionMode = $("#executionMode").value;
-    run = null;
-    step = -1;
-    home();
-  };
-  $("#one").onclick = () => {
-    mode = "one";
-    run = null;
-    step = -1;
-    home();
-  };
-  $("#teamMode").onclick = () => {
-    mode = "team";
-    run = null;
-    step = -1;
-    home();
-  };
-  $("#team").onchange = () => {
-    run = null;
-    step = -1;
-    home();
-  };
-  $("#start").onclick = async () => {
-    try {
-      const body = { goal: $("#goal").value, team: $("#team").value, mode };
-      if (executionMode !== "demo") {
-        await refreshConnection();
-        if (!connectionState.ready) {
-          await connection();
-          return;
-        }
-        await realRun(body);
-        return;
-      }
-      run = await api("run", body);
-      state = await api("state");
-      step = 0;
-      selected = 0;
-      home();
-    } catch (e) {
-      toast(e.message);
-    }
-  };
-  if ($("#next"))
-    $("#next").onclick = () => {
-      step++;
-      selected = Math.min(step, run.steps.length - 1);
-      home();
-    };
-  $("#editAgents").onclick = () => {
-    page = "Agents";
-    render();
-  };
-  $("#compare").onclick = compare;
-  document.querySelectorAll("[data-step]").forEach((el) => {
-    el.onclick = () => {
-      selected = +el.dataset.step;
-      home();
-    };
-    el.onkeydown = (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        el.click();
-      }
-    };
-  });
+  realWatch();
 }
 function catalog() {
   const agents = page === "Agents",
@@ -976,7 +984,7 @@ async function connection() {
     ]);
     connectionState = status;
     modal(
-      `<h2>Connect your account</h2><p>Real AI is the main workspace. Your account must pass a backend access check before a real run can start.</p><button class="primary" id="oauth">Continue with ChatGPT</button> <button id="logout">Sign out locally</button><p>${esc(status.chatgpt.message)}</p><p><small>If OpenAI shows a browser check or HTTP 403, complete sign-in in your regular browser. No connection is assumed until the callback and provider check succeed.</small></p><div id="signInLink"></div><details><summary>Alternative: your API connection</summary><p>Choose this alternative deliberately. Credentials are shared only as a connection; each agent selects its own model in Profile. Use a provider with streaming Responses support.</p><form id="settings"><label class="field">API base URL<input type="url" name="base_url" value="${esc(c.base_url)}"></label><label class="field">API key<input type="password" autocomplete="off" name="api_key" placeholder="${c.has_key ? "Saved · leave blank to keep" : "Enter locally, never in chat"}"></label><button class="primary">Save and check API connection</button></form><p>${esc(status.api.message)}</p></details><button id="recheck">Check connection again</button><p class="muted">Models are selected in Agents → Profile. Closing this pop-up keeps real execution unavailable until a connection is verified. Educational samples are optional and must be chosen explicitly.</p>`,
+      `<h2>Connect your account</h2><p>Real AI is the main workspace. Your account must pass a backend access check before a real run can start.</p><button class="primary" id="oauth">Continue with ChatGPT</button> <button id="logout">Sign out locally</button><p>${esc(status.chatgpt.message)}</p><p><small>If OpenAI shows a browser check or HTTP 403, complete sign-in in your regular browser. No connection is assumed until the callback and provider check succeed.</small></p><div id="signInLink"></div><details><summary>Alternative: your API connection</summary><p>Choose this alternative deliberately. Credentials are shared only as a connection; each agent selects its own model in Profile. Use a provider with streaming Responses support.</p><form id="settings"><label class="field">API base URL<input type="url" name="base_url" value="${esc(c.base_url)}"></label><label class="field">API key<input type="password" autocomplete="off" name="api_key" placeholder="${c.has_key ? "Saved · leave blank to keep" : "Enter locally, never in chat"}"></label><button class="primary">Save and check API connection</button></form><p>${esc(status.api.message)}</p></details><button id="recheck">Check connection again</button><p class="muted">Models are selected in Agents → Profile. Closing this pop-up keeps real execution unavailable until a connection is verified. Execution always uses the connected models.</p>`,
     );
     $("#oauth").onclick = async () => {
       try {
@@ -1032,86 +1040,95 @@ async function refreshConnection() {
   $("#connection").textContent = connectionState.ready
     ? "◉ Account access verified"
     : "○ Connection required";
-  $(".tag").textContent =
-    executionMode === "demo" ? "Educational samples" : "Real AI workspace";
+  $(".tag").textContent = "Real AI workspace";
   return connectionState;
 }
 async function realRun(body) {
   busy = true;
-  run = null;
-  home();
+  if (page === "Watch & run") realWatch();
   try {
     const job = await api("real-run", body);
-    const team = state.teams.find((t) => t.id === body.team);
-    const agents = (
-      body.mode === "one" ? team.agents.slice(0, 1) : team.agents
-    ).map((id) => state.agents.find((a) => a.id === id));
-    const managerId = body.mode === "one" ? null : team.manager;
-    const result = await new Promise((resolve, reject) => {
-      const stream = new EventSource("/api/jobs/" + job.id + "/events");
+    messageDraft = "";
+    activeConversation = await api("conversations/" + body.conversationId);
+    run = (await api("jobs/" + job.id)).run;
+    if (page === "Watch & run") realWatch();
+    await followExecution(job.id);
+  } catch (e) {
+    busy = false;
+    if (e.executionId) {
+      run = (await api("jobs/" + e.executionId)).run;
+      run.failed = true;
+      run.error = e.message;
+      activeConversation = await api("conversations/" + activeConversation.id);
+      if (activeConversation.messages.some((m) => m.runId === e.executionId))
+        messageDraft = "";
+    }
+    toast(e.message);
+    if (page === "Watch & run") realWatch();
+  }
+}
+async function followExecution(id) {
+  streamJobId = id;
+  try {
+    await new Promise((resolve, reject) => {
+      const stream = new EventSource("/api/jobs/" + id + "/events");
       stream.onmessage = (event) => {
         const snapshot = JSON.parse(event.data);
-        const completed = snapshot.events.filter(
-          (e) => e.type === "step_completed",
-        );
-        run = {
-          goal: body.goal,
-          provider: "real",
-          managerId,
-          orchestration: managerId ? "managed" : "sequential",
-          roster: agents.map((a) => ({
-            agentId: a.id,
-            agent: a.name,
-            avatar: a.avatar,
-          })),
-          steps: completed.map((e) => e.data.result),
-          events: snapshot.events,
-          completed: snapshot.status === "completed",
-        };
-        step = completed.length;
-        if (page === "Watch & run") home();
-        if (snapshot.status === "completed") {
+        if (!run || run.id === id || !busy) {
+          run = {
+            ...snapshot.run,
+            failed: ["failed", "interrupted", "rejected"].includes(
+              snapshot.status,
+            ),
+            error: snapshot.error,
+          };
+          if (page === "Watch & run") updateExecution();
+        }
+        if (snapshot.status !== "running") {
           stream.close();
           resolve(snapshot);
-        } else if (snapshot.status === "failed") {
-          stream.close();
-          reject(Error(snapshot.error));
         }
       };
       stream.onerror = () => {
         stream.close();
         reject(
           Error(
-            "The live event connection was lost. Check the saved run status; no sample result was substituted.",
+            "Live connection lost. Reopen this saved chat to reconnect; its execution continues on the server.",
           ),
         );
       };
     });
-    run = result.run;
-    state = await api("state");
-    step = run.steps.length;
-    selected = run.steps.length - 1;
-    toast("Real run complete. Outputs and provider usage are saved.");
   } catch (e) {
-    if (run) {
-      run.failed = true;
-      run.error = e.message;
-    }
     toast(e.message);
   } finally {
     busy = false;
-    if (page === "Home") dashboard();
-    else if (page === "Watch & run") home();
+    streamJobId = null;
+    activeConversation = await api("conversations/" + activeConversation.id);
+    conversationList = await api("conversations");
+    state = await api("state");
+    if (page === "Watch & run") {
+      realWatch();
+      $("#chatMessage")?.focus();
+    }
   }
 }
 $("#connection").onclick = connection;
 $("#help").onclick = () =>
   modal(
-    "<h2>A team of small jobs</h2><p>Goal: plan a picnic. The Researcher finds things to bring. The Writer makes a short plan. The Reviewer checks whether the plan is easy to follow.</p><p>A tool helps do one task. A skill gives instructions. An MCP connection can offer several tools. You choose each permission.</p><p>Tokens are small pieces of text. Demo counts are sample numbers. Real AI counts come only from your provider.</p>",
+    "<h2>A team of small jobs</h2><p>Goal: plan a picnic. The Researcher finds things to bring. The Writer makes a short plan. The Reviewer checks whether the plan is easy to follow.</p><p>A tool helps do one task. A skill gives instructions. An MCP connection can offer several tools. You choose each permission.</p><p>Choose Team or One agent, select a name and open the chat. Each message triggers an automatic execution. Inspect the steps on the right. Token counts come from your provider.</p>",
   );
 api("state")
   .then(async (s) => {
     state = s;
+    conversationList = await api("conversations");
+    const savedConversation = localStorage.getItem("agentsim-conversation");
+    if (savedConversation) {
+      try {
+        await loadConversation(savedConversation);
+      } catch {
+        localStorage.removeItem("agentsim-conversation");
+      }
+    }
     render();
     await refreshConnection();
     if (!connectionState.ready) await connection();

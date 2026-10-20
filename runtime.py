@@ -363,20 +363,17 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
 
 
 def execute(state, body, emit, config=None):
+    from execution_context import conversation_prompt, resolve_target
+
     config = dict(config or auth.settings())
-    team = next((t for t in state["teams"] if t["id"] == body.get("team")), None)
-    if not team:
-        raise ValueError("Choose a team.")
+    team, members = resolve_target(state, body)
     if team.get("manager") and body.get("mode") != "one":
         from orchestration import execute_managed
 
         return execute_managed(state, body, emit, config)
-    members = [next(a for a in state["agents"] if a["id"] == i) for i in team["agents"]]
-    if body.get("mode") == "one":
-        members = members[:1]
     goal = body.get("goal", "").strip()
-    if not goal or len(goal) > 500 or not members:
-        raise ValueError("Add a goal and at least one agent.")
+    if not goal or len(goal) > 8000:
+        raise ValueError("Write a message (1–8000 characters).")
     agents = []
     tasks = []
     steps = []
@@ -428,7 +425,7 @@ def execute(state, body, emit, config=None):
                 )
 
         task = Task(
-            description=f"Current goal: {goal}\nYour job: {a['goal']}.{skill}\nAgent instructions: {a['instructions']}\nUse previous task results when provided.",
+            description=f"Current user message: {goal}{conversation_prompt(body)}\nYour job: {a['goal']}.{skill}\nAgent instructions: {a['instructions']}\nUse previous task results when provided.",
             expected_output=a["expectedOutput"],
             agent=agent,
             context=list(tasks),

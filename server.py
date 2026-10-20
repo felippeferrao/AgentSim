@@ -16,6 +16,8 @@ import harness
 import plugin_import
 import profiles
 import skill_files
+from conversation_store import ConversationStore
+from execution_context import resolve_target
 from execution_log import enrich
 
 LOCK = threading.RLock()
@@ -51,6 +53,10 @@ def connect():
     db.execute("CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, data TEXT)")
     db.execute("CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY, data TEXT)")
     return db
+
+
+def conversations():
+    return ConversationStore(connect)
 
 
 def save_job(job):
@@ -120,6 +126,8 @@ def recover_jobs():
                 failed=True, error=job["error"], completed=False, events=job["events"]
             )
             save_job(job)
+        if job["status"] != "running":
+            conversations().finish(job)
 
 
 def initial():
@@ -418,6 +426,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         if url.path == "/api/image-provider":
             return self.reply(harness.ImageProvider.settings())
+        if url.path == "/api/conversations":
+            return self.reply(conversations().list())
+        if url.path.startswith("/api/conversations/"):
+            try:
+                return self.reply(conversations().get(url.path.rsplit("/", 1)[-1]))
+            except ValueError as exc:
+                return self.reply({"error": str(exc)}, 404)
         if url.path == "/api/executions":
             return self.reply(execution_history())
         if url.path.startswith("/artifacts/"):
@@ -545,6 +560,8 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise ValueError("Expected a JSON object.")
             s = read()
+            if self.path == "/api/conversations":
+                return self.reply(conversations().create(s, body), 201)
             if self.path == "/api/image-provider/clear":
                 auth.store("image-provider", {})
                 return self.reply(harness.ImageProvider.settings())
@@ -723,17 +740,36 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/api/real-run":
                 if any(j["status"] == "running" for j in JOBS.values()):
                     raise ValueError("Wait for the current run to finish.")
-                # Validate goal and membership before starting a background worker.
-                make_run(s, body)
-                selected_team = next(t for t in s["teams"] if t["id"] == body["team"])
-                selected_ids = (
-                    selected_team["agents"][:1]
-                    if body.get("mode") == "one"
-                    else selected_team["agents"]
-                )
-                selected_agents = [
-                    next(a for a in s["agents"] if a["id"] == ident) for ident in selected_ids
-                ]
+                conversation = None
+                context_truncated = False
+                if body.get("conversationId"):
+                    conversation = conversations().get(body["conversationId"])
+                    # Only the persisted target/history can define a conversation turn.
+                    context, context_truncated = conversations().context(conversation)
+                    body = {
+                        "conversationId": conversation["id"],
+                        "mode": conversation["mode"],
+                        "agent": conversation["targetId"]
+                        if conversation["mode"] == "one"
+                        else None,
+                        "team": conversation["targetId"]
+                        if conversation["mode"] == "team"
+                        else None,
+                        "goal": body.get("goal", ""),
+                        "conversationContext": context,
+                    }
+                else:
+                    body.pop("conversationContext", None)
+                goal = body.get("goal", "")
+                if not isinstance(goal, str) or not goal.strip() or len(goal) > 8000:
+                    raise ValueError("Write a message (1–8000 characters).")
+                selected_team, selected_agents = resolve_target(s, body)
+                if (
+                    body.get("mode", "team") == "team"
+                    and conversation
+                    and not selected_team.get("manager")
+                ):
+                    raise ValueError("Choose this team's manager in Teams first.")
                 for agent in selected_agents:
                     if not agent["model"]["name"]:
                         raise ValueError(agent["name"] + ": select a model in Profile first.")
@@ -750,6 +786,8 @@ class Handler(BaseHTTPRequestHandler):
                 seed = {
                     "id": job_id,
                     "goal": body["goal"],
+                    "mode": body.get("mode", "team"),
+                    "conversationId": body.get("conversationId"),
                     "team": selected_team["name"],
                     "provider": "real",
                     "steps": [],
@@ -774,6 +812,8 @@ class Handler(BaseHTTPRequestHandler):
                     "startedAt": time.time(),
                 }
 
+                if conversation:
+                    conversations().begin(conversation, body["goal"], job_id)
                 save_job(JOBS[job_id])
 
                 def work():
@@ -799,12 +839,28 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         from runtime import execute
 
+                        if conversation:
+                            emit(
+                                "conversation_context",
+                                {
+                                    "implementation": "conversation_store.ConversationStore",
+                                    "where": "Local SQLite conversation → agent task context",
+                                    "explanation": "The current message and prior completed conversation messages were supplied to the selected target.",
+                                    "conversationId": conversation["id"],
+                                    "priorMessages": len(body["conversationContext"]),
+                                    "contextTruncated": context_truncated,
+                                    "mode": body["mode"],
+                                    "targetId": conversation["targetId"],
+                                    "target": selected_team["name"],
+                                },
+                            )
                         steps = execute(s, body, emit, config=run_config)
                         run = {
                             "id": job_id,
                             "goal": body["goal"],
                             "mode": body.get("mode", "team"),
-                            "team": next(t["name"] for t in s["teams"] if t["id"] == body["team"]),
+                            "team": selected_team["name"],
+                            "conversationId": body.get("conversationId"),
                             "provider": "real",
                             "managerId": selected_team.get("manager")
                             if body.get("mode") != "one"
@@ -849,6 +905,8 @@ class Handler(BaseHTTPRequestHandler):
                             latest["runs"] = (latest["runs"] + [job["run"]])[-200:]
                             save(latest)
                     finally:
+                        if conversation:
+                            conversations().finish(job)
                         save_job(job)
 
                 threading.Thread(target=work, daemon=True).start()
@@ -868,10 +926,12 @@ class Handler(BaseHTTPRequestHandler):
                     save(body)
                 return self.reply(body)
             if self.path == "/api/run":
-                run = make_run(s, body)
-                s["runs"] = (s["runs"] + [run])[-200:]
-                save(s)
-                return self.reply(run)
+                return self.reply(
+                    {
+                        "error": "Sample execution is no longer available. Open a chat with an agent or team."
+                    },
+                    410,
+                )
             return self.reply({"error": "Not found"}, 404)
         except (ValueError, KeyError, TypeError, StopIteration) as e:
             message = str(e) or "Invalid data"
@@ -901,7 +961,8 @@ class Handler(BaseHTTPRequestHandler):
                     "error": message,
                     "run": {
                         "id": ident,
-                        "goal": str(request_body.get("goal", ""))[:500],
+                        "goal": str(request_body.get("goal", ""))[:8000],
+                        "conversationId": (locals().get("conversation") or {}).get("id"),
                         "team": str(request_body.get("team", ""))[:80],
                         "provider": "real",
                         "steps": [],
@@ -910,7 +971,17 @@ class Handler(BaseHTTPRequestHandler):
                         "completed": False,
                     },
                 }
+                current_conversation = locals().get("conversation")
+                if (
+                    current_conversation
+                    and isinstance(request_body.get("goal"), str)
+                    and request_body["goal"].strip()
+                    and len(request_body["goal"]) <= 8000
+                ):
+                    conversations().begin(current_conversation, request_body["goal"], ident)
+                    conversations().finish(rejected)
                 save_job(rejected)
+                return self.reply({"error": message, "id": ident}, 400)
             self.reply({"error": message}, 400)
         except Exception:
             self.reply(
