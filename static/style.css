@@ -1450,11 +1450,33 @@ pre {
 }
 .chat-workspace {
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(340px, 1.1fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, var(--chat-share, 60fr)) 12px minmax(0, var(--execution-share, 40fr));
+  gap: 8px;
   height: max(400px, calc(100vh - 305px));
   min-height: 0;
 }
+.chat-divider {
+  cursor: col-resize;
+  touch-action: none;
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+}
+.chat-divider::after {
+  content: "";
+  width: 4px;
+  height: 52px;
+  background: #bdc9dc;
+  border-radius: 4px;
+}
+.chat-divider:hover, .chat-divider:focus-visible {
+  background: #e5ebf6;
+  outline: 2px solid #829ac3;
+}
+.chat-workspace.resizing { user-select: none; cursor: col-resize; }
+.chat-workspace.resizing iframe { pointer-events: none; }
 .chat-workspace > .panel {
   display: flex;
   flex-direction: column;
@@ -1583,6 +1605,16 @@ pre {
 .execution-column .artifact-grid {
   grid-template-columns: minmax(0, 1fr);
 }
+.execution-column .artifact-card img {
+  display: block;
+  width: 112px;
+  height: 84px;
+  max-width: 100%;
+  object-fit: contain;
+  margin: 8px 0;
+  background: #f3f6fb;
+  border-radius: 8px;
+}
 .execution-column #executionArtifacts > .panel {
   padding: 12px;
 }
@@ -1604,6 +1636,7 @@ pre {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
   }
+  .chat-divider { display: none; }
   .chat-workspace > .panel {
     height: 650px;
   }

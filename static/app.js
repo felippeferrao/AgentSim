@@ -260,7 +260,8 @@ function realWatch() {
     <div class="chat-workspace"><section class="panel user-chat" aria-label="Conversation"><div class="section-heading"><div><h2>${esc(activeConversation?.name || target?.name || "Your conversation")}</h2><small>${activeConversation ? "Messages are saved. Follow-up messages retain conversation context." : "Choose Team or One agent, select a name and open the chat."}</small></div></div>
     <div id="chatMessages" class="chat-messages" role="log" aria-label="Chat messages" aria-live="polite"></div>
     <form id="chatForm" class="chat-composer"><label for="chatMessage">Message</label><textarea id="chatMessage" placeholder="What would you like to do?" maxlength="8000" rows="3" ${!activeConversation || busy ? "disabled" : ""}>${esc(messageDraft)}</textarea><div><small>Enter to send · Shift+Enter for a new line</small><button class="orange" id="sendMessage" ${!activeConversation || busy ? "disabled" : ""}>${busy ? "Working…" : "Send"}</button></div></form></section>
-    <section class="panel execution-column" aria-label="Execution details"><div class="section-heading"><h2>Execution</h2><span class="badge ${busy ? "working" : ""}" id="executionStatus">${busy ? "● Live" : run?.failed ? "Failed" : run?.completed ? "Complete" : "Ready"}</span></div><div id="turnPicker"></div><div id="liveAgents" class="chat-agent-strip"></div><div id="executionScroll" class="execution-scroll" tabindex="0" aria-label="Scrollable execution steps"><div id="executionSteps"></div><div id="executionArtifacts"></div></div><small id="executionUsage"></small></section></div>`;
+    <div class="chat-divider" role="separator" tabindex="0" aria-label="Resize chat and execution" aria-orientation="vertical" aria-valuemin="30" aria-valuemax="75" aria-valuenow="60" title="Drag to resize · Arrow keys to adjust · Double-click to reset"></div><section class="panel execution-column" aria-label="Execution details"><div class="section-heading"><h2>Execution</h2><span class="badge ${busy ? "working" : ""}" id="executionStatus">${busy ? "● Live" : run?.failed ? "Failed" : run?.completed ? "Complete" : "Ready"}</span></div><div id="turnPicker"></div><div id="liveAgents" class="chat-agent-strip"></div><div id="executionScroll" class="execution-scroll" tabindex="0" aria-label="Scrollable execution steps"><div id="executionSteps"></div><div id="executionArtifacts"></div></div><small id="executionUsage"></small></section></div>`;
+  setupChatDivider();
   $("#teamMode").onclick = () => {
     if (mode !== "team") {
       mode = "team";
@@ -1137,6 +1138,47 @@ api("state")
     $("#main").textContent =
       "Could not load AgentSim. Start the Python server and refresh.";
   });
+
+function setupChatDivider() {
+  const workspace = $(".chat-workspace"), divider = $(".chat-divider");
+  const saved = Number(localStorage.getItem("agentsim-chat-width"));
+  let ratio = Number.isFinite(saved) && saved >= 30 && saved <= 75 ? saved : 60;
+  const apply = (value) => {
+    ratio = Math.max(30, Math.min(75, value));
+    workspace.style.setProperty("--chat-share", `${ratio}fr`);
+    workspace.style.setProperty("--execution-share", `${100 - ratio}fr`);
+    divider.setAttribute("aria-valuenow", String(Math.round(ratio)));
+    divider.setAttribute("aria-valuetext", `Chat ${Math.round(ratio)}%, execution ${Math.round(100 - ratio)}%`);
+  };
+  const save = () => localStorage.setItem("agentsim-chat-width", String(ratio));
+  apply(ratio);
+  divider.onpointerdown = (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    divider.focus();
+    divider.setPointerCapture(event.pointerId);
+    workspace.classList.add("resizing");
+  };
+  divider.onpointermove = (event) => {
+    if (!divider.hasPointerCapture(event.pointerId)) return;
+    const bounds = workspace.getBoundingClientRect();
+    apply(100 * (event.clientX - bounds.left) / bounds.width);
+  };
+  divider.onpointerup = (event) => {
+    if (!divider.hasPointerCapture(event.pointerId)) return;
+    divider.releasePointerCapture(event.pointerId);
+    save();
+  };
+  divider.onlostpointercapture = () => workspace.classList.remove("resizing");
+  divider.onkeydown = (event) => {
+    const values = { ArrowLeft: ratio - 2, ArrowRight: ratio + 2, Home: 30, End: 75 };
+    if (!(event.key in values)) return;
+    event.preventDefault();
+    apply(values[event.key]);
+    save();
+  };
+  divider.ondblclick = () => { apply(60); save(); };
+}
 
 function artifactCards(record = run) {
   const items =

@@ -124,3 +124,10 @@ Verified in the existing user tab after reload: removed copy/button absent, robo
 Audited all 184 reachable historical Git blobs before this change for OpenAI key patterns and exact credential values from AgentSim's local credential JSON files: no matches. No credential files or SQLite databases are tracked. Existing personal credentials and database remain local so the running installation keeps working. Expanded Git exclusions cover environment variants, common credential JSON names, private key files and SQLite database/journal/WAL variants.
 
 A fresh-install regression check starts with a nonexistent database, creates it through the normal application read path, verifies empty agents/teams/runs/history and verifies no credential directory is created. GitHub distributes source only; execution remains loopback-only and every clone must configure its own account locally.
+
+
+## Resizable chat and compact execution images — 2026-10-21
+
+Watch & run now starts with a 60/40 chat/execution split. A draggable, keyboard-accessible separator adjusts the chat share from 30% to 75%, persists the browser preference and resets to 60% on double-click. Mobile keeps stacked panels and hides the separator. Execution result images use 112 × 84 px contain-fit thumbnails; chat images retain their larger preview and original Open/Download links.
+
+Verified in the local app using an existing saved conversation: real image loaded at 112 × 84, pointer drag changed the split, ArrowLeft adjusted it, double-click restored 60%, and navigation away/back retained the setting. JavaScript syntax and whitespace checks pass.
