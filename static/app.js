@@ -149,7 +149,7 @@ function dashboard() {
     ],
   ];
   $("#main").innerHTML =
-    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Load example team"}</button><button id="goWatch">Watch & run →</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}">${dashboardArt(name)}<span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>${state.teams.some((t) => t.id === "comic-story-studio") ? "1. Open Watch & run. 2. Choose Comic Story Studio and open the chat. 3. Describe your theme and story; Orchestrator coordinates the full production crew." : "1. Create an agent or load examples. 2. Choose its job and permissions. 3. Choose a team or agent in Watch & run and start a conversation."}</p><button id="dashboardConnect">Connection setup</button></section>`;
+    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Load example team"}</button><button id="goWatch">Watch & run →</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}">${dashboardArt(name)}<span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>${state.teams.some((t) => t.id === "comic-story-studio") ? "1. Open Watch & run. 2. Choose Comic Story Studio and open the chat. 3. Describe your theme and story; Orchestrator plans tasks and coordinates the available agents." : "1. Create an agent or load examples. 2. Choose its job and permissions. 3. Choose a team or agent in Watch & run and start a conversation."}</p><button id="dashboardConnect">Connection setup</button></section>`;
   document.querySelectorAll("[data-open]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -253,7 +253,7 @@ function realWatch() {
   const targetId = mode === "one" ? activeAgentId : activeTeamId;
   $("#main").classList.add("chat-page");
   $("#main").innerHTML =
-    `<h1>Watch & run</h1><p class="subtitle">${target?.id === "comic-story-studio" ? "Describe your theme and story. Orchestrator coordinates scriptwriting, illustration, layout, validation and PDF publication." : "Chat with your team or agent. Follow each execution on the right."}</p>
+    `<h1>Watch & run</h1><p class="subtitle">${target?.id === "comic-story-studio" ? "Describe your request. The manager breaks it into small tasks and calls available agents when needed." : "Chat with your team or agent. Follow each execution on the right."}</p>
     <section class="panel chat-setup"><div class="target-mode" role="group" aria-label="Who to call"><button id="teamMode" aria-pressed="${mode === "team"}" class="${mode === "team" ? "primary" : ""}" ${busy ? "disabled" : ""}>Team</button><button id="one" aria-pressed="${mode === "one"}" class="${mode === "one" ? "primary" : ""}" ${busy ? "disabled" : ""}>One agent</button></div>
     <label class="target-label">${mode === "one" ? "Agent" : "Team"}<select id="executionTarget" aria-label="${mode === "one" ? "Agent to call" : "Team to call"}" ${busy ? "disabled" : ""}><option value="">Choose ${mode === "one" ? "an agent" : "a team"}</option>${options.map((t) => `<option value="${esc(t.id)}" ${t.id === targetId ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label>
     <button id="openChat" ${busy || !target ? "disabled" : ""}>${activeConversation ? "New chat" : "Open chat"}</button>
@@ -1198,6 +1198,19 @@ function artifactCards(record = run) {
   if (!items.length) return "";
   return `<section class="panel"><h2>Generated results</h2><div class="artifact-grid">${items.map((a) => `<article class="artifact-card"><h3>${esc(a.title)}</h3><small>${esc(a.agent)} · ${esc(a.extension.toUpperCase())} · ${esc(a.bytes)} bytes</small>${a.extension === "png" ? `<img src="${esc(a.url)}" alt="${esc(a.title)}" loading="lazy">` : a.extension === "html" ? `<iframe src="${esc(a.url)}" sandbox="allow-scripts" title="${esc(a.title)}" loading="lazy"></iframe>` : a.extension === "pdf" ? `<div class="pdf-attachment"><span aria-hidden="true">▤</span><b>PDF document</b><p>Open the report to view its pages.</p></div>` : ""}<a href="${esc(a.url)}" target="_blank" rel="noopener">Open ${esc(a.extension.toUpperCase())}</a> · <a href="${esc(a.url)}" download>Download</a>${activeConversation ? `<button class="use-artifact" data-reference="${esc(a.url)}" data-title="${esc(a.title)}" ${busy ? "disabled" : ""}>Use in next message</button>` : ""}</article>`).join("")}</div></section>`;
 }
+function executionActor(event, record) {
+  const d = event.data || {};
+  const roster = record?.roster || [];
+  const id = (event.type === "skill_selected" ? d.selectedById : null)
+    || d.fromId || d.agentId || d.result?.agentId
+    || (event.type === "usage" ? roster[d.step]?.agentId : null)
+    || (event.type === "run_started" ? record?.managerId : null);
+  const actor = d.actor || roster.find(a => a.agentId === id)
+    || state.agents.find(a => a.id === id);
+  const name = actor?.agent || actor?.name || d.selectedBy || d.from || d.agent || d.result?.agent;
+  if (!name) return '<div class="execution-actor system-actor">System · execution service</div>';
+  return `<div class="execution-actor"><span class="execution-avatar" role="img" aria-label="${esc(name)} avatar"><span class="avatar ${avatarClass(actor?.avatar || d.avatar || d.result?.avatar || "robot")}" aria-hidden="true"></span></span><strong>${esc(name)}</strong></div>`;
+}
 function interactionTimeline(record = run) {
   const events = record?.events || [];
   if (!events.length) {
@@ -1255,7 +1268,7 @@ function interactionTimeline(record = run) {
       else
         body = `<h3>${esc(d.name || d.agent || record?.roster?.find((a) => a.agentId === d.agentId)?.agent || label)}</h3><p>${esc(d.explanation || d.error || label)}</p>`;
       const detail = JSON.stringify(d, null, 2);
-      return `<article class="dialogue-message trace-event event-${e.type}"><small>Step ${e.sequence || i + 1} · ${esc(time)} · ${esc(label)}</small>${body}<details class="provenance"><summary>Where it ran · implementation · evidence</summary><p><b>Where:</b> ${esc(d.where || "Local harness")}<br><b>Class / function:</b> <code>${esc(d.implementation || "Legacy event")}</code></p><p>${esc(d.explanation || "Recorded execution event.")}</p><pre>${esc(detail)}</pre></details></article>`;
+      return `<article class="dialogue-message trace-event event-${e.type}">${executionActor(e, record)}<small>Step ${e.sequence || i + 1} · ${esc(time)} · ${esc(label)}</small>${body}<details class="provenance"><summary>Where it ran · implementation · evidence</summary><p><b>Where:</b> ${esc(d.where || "Local harness")}<br><b>Class / function:</b> <code>${esc(d.implementation || "Legacy event")}</code></p><p>${esc(d.explanation || "Recorded execution event.")}</p><pre>${esc(detail)}</pre></details></article>`;
     })
     .join("");
 }

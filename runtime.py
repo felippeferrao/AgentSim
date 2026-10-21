@@ -263,6 +263,8 @@ class ResponsesLLM(BaseLLM):
         usage = final.usage
         record = {
             "step": self.current,
+            "agentId": self.config.get("agentId"),
+            "agent": self.config.get("agentName"),
             "input": usage.input_tokens if usage else None,
             "output": usage.output_tokens if usage else None,
         }
@@ -434,7 +436,7 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
 
 
 def pdf_result_guardrail(goal, config, emit):
-    if not re.search(r"\b(pdf|e-?book)\b", goal, re.I):
+    if not config.get("ebookWorkflow") and not re.search(r"\b(pdf|e-?book)\b", goal, re.I):
         return None
 
     def check(output):

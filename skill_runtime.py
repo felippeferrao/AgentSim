@@ -64,6 +64,7 @@ class SkillSelector(BaseTool):
                 "agentId": target_id,
                 "agent": target["name"],
                 "selectedBy": self.actor["name"],
+                "selectedById": self.actor["id"],
                 "skillId": skill_id,
                 "skill": skill["name"],
                 "reason": reason,

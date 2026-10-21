@@ -4,14 +4,14 @@ A clean, English-language crew for producing an illustrated comic from a theme a
 
 | Agent | Responsibility | Generation tools |
 | --- | --- | --- |
-| Orchestrator | Creative director and orchestrator; delegates every production stage | Delegation and quality gate |
+| Orchestrator | Adaptive task planning and delegation to available members | Delegation and file inspection |
 | Scriptwriter | Complete chapter/panel script, dialogue and visual bible | None |
 | Illustrator | New cover and distinct illustrated chapter pages with consistent characters | Image Generator |
 | Layout Designer | Full structured cover/chapter layout with real illustration URLs | None |
 | Quality Validator | Narrative, continuity, layout and actual file/metadata quality checks | Read generated files |
-| PDF Generator | Approved PDF generation and final page/image/text inspection | PDF Generator; read generated files |
+| PDF Generator | Requested PDF generation and final page/image/text inspection | PDF Generator; read generated files |
 
-Orchestrator coordinates the dependency order **Scriptwriter → Illustrator → Layout Designer → Quality Validator → PDF Generator**, revisiting earlier stages when corrections are needed. Quality Validator must return `APPROVED` for the current material before PDF Generator can publish. Completion requires all five specialists in order and a real illustrated PDF. Only Illustrator can generate images; only PDF Generator can generate PDFs. Read-only generated-file inspection is available during the run, including for files created by another specialist.
+Orchestrator breaks the request into small tasks and chooses which available agents to call, in what order, and when to revise or review work. No role list or sequence is mandatory. Removing a specialist does not block a run: the manager adapts using the remaining members and its own text capabilities. If a required generation tool is unavailable to every remaining member, it explains the concrete limitation rather than inventing a result. Quality review can be requested at any useful point; there is no named-stage approval gate. Requested PDF/image outputs must still be real files. The default permissions give Image Generator only to Illustrator and PDF Generator only to PDF Generator. These are editable grants, not hardcoded routing rules. Read-only generated-file inspection is available throughout the run. Every execution action displays the responsible agent’s name and avatar; new events preserve that identity in their saved metadata.
 
 In **Watch & run**, select **Team → Comic Story Studio → Open chat** and send, for example:
 

@@ -826,7 +826,7 @@ class Handler(BaseHTTPRequestHandler):
                         job["events"].append(
                             {
                                 "type": kind,
-                                "data": enrich(kind, data),
+                                "data": enrich(kind, data, selected_agents),
                                 "time": time.time(),
                                 "sequence": len(job["events"]) + 1,
                             }

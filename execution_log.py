@@ -79,8 +79,22 @@ RULES = {
 }
 
 
-def enrich(kind, data):
+def enrich(kind, data, agents=()):
     implementation, where, explanation = RULES.get(
         kind, ("server.Handler", "Local harness", kind.replace("_", " ").capitalize())
     )
-    return {"implementation": implementation, "where": where, "explanation": explanation, **data}
+    result = {"implementation": implementation, "where": where, "explanation": explanation, **data}
+    actor_id = (
+        (data.get("selectedById") if kind == "skill_selected" else None)
+        or data.get("fromId")
+        or data.get("agentId")
+        or data.get("result", {}).get("agentId")
+    )
+    actor = next((a for a in agents if a["id"] == actor_id), None)
+    if actor:
+        result["actor"] = {
+            "agentId": actor["id"],
+            "agent": actor["name"],
+            "avatar": actor["avatar"],
+        }
+    return result

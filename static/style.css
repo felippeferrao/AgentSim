@@ -1402,6 +1402,30 @@ pre {
   border-color: #08a49e;
   margin-left: 24px;
 }
+.execution-actor {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.execution-avatar {
+  display: block;
+  width: 38px;
+  height: 30px;
+  flex: 0 0 38px;
+  overflow: hidden;
+}
+.execution-avatar .avatar {
+  display: block;
+  width: 170px;
+  max-width: none;
+  height: 123px;
+  margin: 0;
+  transform: scale(0.22);
+  transform-origin: top left;
+}
+.system-actor { color: #667085; font-size: 12px; }
 .dialogue-message.event-skill_selected {
   background: #f1edff;
   border-color: #8b79fa;

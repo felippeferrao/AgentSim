@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 TEAM_ID = "comic-story-studio"
-STAGES = ("scriptwriter", "illustrator", "layout-designer", "quality-validator", "pdf-generator")
+SPECIALISTS = ("scriptwriter", "illustrator", "layout-designer", "quality-validator", "pdf-generator")
 DIRECTORY = Path(__file__).parent / "examples" / "comic-studio"
 
 
@@ -14,39 +14,6 @@ def build(catalog):
     state = json.loads((DIRECTORY / "configuration.json").read_text())
     state["catalog"] = copy.deepcopy(catalog) | state["catalog"]
     return state
-
-
-def stage_problem(results, include_publisher=True):
-    required = STAGES if include_publisher else STAGES[:-1]
-    latest = {r["agentId"]: (i, r) for i, r in enumerate(results)}
-    missing = [ident for ident in required if ident not in latest]
-    if missing:
-        return "Delegate the missing production stages: " + ", ".join(missing) + "."
-    positions = [latest[ident][0] for ident in required]
-    if positions != sorted(positions):
-        return "An earlier stage was revised. Repeat layout, validation and publication in dependency order."
-    review = latest["quality-validator"][1]["output"].strip()
-    if not review or review.splitlines()[0].strip().upper() != "APPROVED":
-        return "Quality Validator has not approved the latest layout. Resolve her corrections and obtain a fresh APPROVED review."
-    return None
-
-
-def completion_guardrail(config, results, emit, pdf_check):
-    def check(output):
-        problem = stage_problem(results)
-        if problem:
-            emit(
-                "workflow_validation_failed",
-                {
-                    "implementation": "starter_crew.completion_guardrail",
-                    "where": "Local comic production stage verification",
-                    "explanation": problem,
-                },
-            )
-            return False, problem + " Do not claim the comic is finished."
-        return pdf_check(output)
-
-    return check
 
 
 def write_seed(catalog):

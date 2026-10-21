@@ -182,13 +182,8 @@ def execute_managed(state, body, emit, config):
     if not goal or len(goal) > 8000:
         raise ValueError("Write a message (up to 8000 characters).")
     results = []
-    import starter_crew
-
-    if team["id"] == starter_crew.TEAM_ID:
-        from ebook_workflow import plan
-
-        config["comicStages"] = results
-        config["ebookWorkflow"] = plan(goal + " illustrated cover 5 chapters")
+    # Budgets describe requested deliverables, never a team's identity or stage order.
+    if config.get("ebookWorkflow"):
         config["ebookWorkflow"]["maxExecutionSeconds"] = max(
             1200, config["ebookWorkflow"]["maxExecutionSeconds"]
         )
@@ -220,27 +215,25 @@ def execute_managed(state, body, emit, config):
         else:
             workers.append(agent)
     roster = "\n".join(
-        f"- {a.role}: {a.profile_data['goal']}. Expected result: {a.profile_data['expectedOutput']}"
+        f"- {a.role}: {a.profile_data['goal']}. Expected result: {a.profile_data['expectedOutput']}. "
+        f"Granted tools: {', '.join(a.profile_data['tools'] + a.profile_data['mcp']) or 'none'}; "
+        f"assigned skills: {', '.join(a.profile_data['skills']) or 'none'}."
         for a in workers
     )
-    pdf_check = pdf_result_guardrail(
-        goal + (" PDF" if team["id"] == starter_crew.TEAM_ID else ""), config, emit
-    )
-    final_check = (
-        starter_crew.completion_guardrail(config, results, emit, pdf_check)
-        if team["id"] == starter_crew.TEAM_ID
-        else pdf_check
-    )
+    final_check = pdf_result_guardrail(goal, config, emit)
     routing_instructions = (
-        "You are the team's manager. Use delegate_work_to_coworker to execute every specialist stage: "
-        "Scriptwriter, Illustrator, Layout Designer, Quality Validator, then PDF Generator. "
-        "Pass the complete preceding results and real artifact URLs to the next specialist. "
-        "Revise rejected work and obtain fresh validation before publication. "
-        "Do not substitute your own answer for a specialist's execution. "
-        if team["id"] == starter_crew.TEAM_ID
-        else "You are the team's manager. Decide which agents to involve and in what order. "
-        "You may revisit an agent, skip irrelevant agents or answer directly when appropriate. "
-        "There is no fixed pipeline. "
+        "You are the team's manager. Break the current request into small, concrete tasks. "
+        "Inspect the available agents and their actual capabilities and permissions below. "
+        "Decide which tasks you can complete yourself and delegate other tasks when useful, "
+        "using delegate_work_to_coworker or ask_question_to_coworker. "
+        "Choose and revise the plan, task size, recipients and order based on actual replies. "
+        "You may revisit, skip or combine work; no specialist name, full roster or fixed sequence is required. "
+        "If an agent is absent, adapt the plan using the remaining agents and your own capabilities. "
+        "Never invent an unavailable coworker or grant a tool implicitly. "
+        "If no available agent has a required tool, explain that concrete limitation. "
+        "Make each delegation a small actionable task with enough context and expected result. "
+        "Include a short public purpose and expected result in each task so the execution history explains the decision. "
+        "Share relevant outputs and exact artifact URLs. Check actual results before concluding. "
     )
     task = Task(
         description=(

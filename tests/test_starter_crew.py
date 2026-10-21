@@ -32,7 +32,9 @@ class StarterCrewTests(unittest.TestCase):
         self.assertEqual(state, server.initial())
         self.assertEqual(state["runs"], [])
         self.assertEqual(state["teams"][0]["manager"], "orchestrator")
-        self.assertEqual([a["id"] for a in state["agents"]], ["orchestrator", *starter_crew.STAGES])
+        self.assertEqual(
+            [a["id"] for a in state["agents"]], ["orchestrator", *starter_crew.SPECIALISTS]
+        )
         self.assertEqual(
             {a["id"]: a["tools"] for a in state["agents"] if a["tools"]},
             {"illustrator": ["image-generator"], "pdf-generator": ["pdf-generator"]},
@@ -41,30 +43,63 @@ class StarterCrewTests(unittest.TestCase):
         self.assertNotIn("access_token", json.dumps(state))
         self.assertTrue(all(a["instructions"] and a["expectedOutput"] for a in state["agents"]))
 
-    def test_publication_requires_current_order_and_approval(self):
-        results = [
-            {"agentId": ident, "output": "APPROVED" if ident == "quality-validator" else "Completed"}
-            for ident in starter_crew.STAGES
-        ]
-        self.assertIsNone(starter_crew.stage_problem(results))
-        results[3]["output"] = "CHANGES REQUIRED"
-        self.assertIn("not approved", starter_crew.stage_problem(results))
-        results[3]["output"] = "APPROVED"
-        results.append({"agentId": "scriptwriter", "output": "Revised story"})
-        self.assertIn("revised", starter_crew.stage_problem(results))
-        events = []
-        tool = harness.IntegrationTool(
-            name="pdf_generator",
-            description="Publish a validated comic PDF",
-            tool_id="pdf-generator",
-            actor={"id": "pdf-generator", "name": "PDF Generator"},
-            llm_adapter=SimpleNamespace(config={"provider": "api", "comicStages": []}),
-            event_sink=lambda k, d: events.append(k),
-            run_id="blocked",
-        )
-        with self.assertRaisesRegex(ValueError, "publication blocked"):
-            tool._run("Publish too early")
-        self.assertNotIn("artifact_created", events)
+    def test_pdf_tool_does_not_require_named_specialist_stages(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(auth, "LOCAL", Path(directory)),
+        ):
+            tool = harness.IntegrationTool(
+                name="pdf_generator",
+                description="Publish requested content",
+                tool_id="pdf-generator",
+                actor={"id": "pdf-generator", "name": "PDF Generator"},
+                llm_adapter=SimpleNamespace(
+                    config={"provider": "api", "conversationArtifacts": []}
+                ),
+                event_sink=lambda *args: None,
+                run_id="adaptive",
+            )
+            result = tool._run("A short standalone document.", title="Adaptive publication")
+            self.assertIn("pdf", str(result))
+
+    def test_reduced_comic_crew_can_reorder_revisit_and_skip_specialties(self):
+        state = server.initial()
+        keep = {"orchestrator", "scriptwriter", "layout-designer"}
+        state["agents"] = [a for a in state["agents"] if a["id"] in keep]
+        state["teams"][0]["agents"] = [a["id"] for a in state["agents"]]
+        for actor in state["agents"]:
+            actor["model"]["connection"] = "api"
+        counts, events = defaultdict(int), []
+        order = ["layout-designer", "scriptwriter", "layout-designer"]
+
+        def scripted(llm, messages, **kwargs):
+            ident = llm.config["agentId"]
+            counts[ident] += 1
+            if ident == "orchestrator" and counts[ident] <= len(order):
+                selected = order[counts[ident] - 1]
+                actor = next(a for a in state["agents"] if a["id"] == selected)
+                index = state["teams"][0]["agents"].index(selected) + 1
+                args = {
+                    "coworker": f"{index}. {actor['name']} — {actor['role']}",
+                    "task": "Complete this small text-only subtask",
+                    "context": "No images or PDF requested",
+                }
+                return (
+                    "Thought: Fixture\nAction: Delegate work to coworker\nAction Input: "
+                    + json.dumps(args)
+                )
+            return "Final Answer: Requested text task completed."
+
+        with patch.object(ResponsesLLM, "call", scripted):
+            results = execute(
+                state,
+                {"team": starter_crew.TEAM_ID, "goal": "Help refine a story idea, text only"},
+                lambda k, d: events.append((k, d)),
+                config={"provider": "api"},
+            )
+        self.assertEqual([d["toId"] for k, d in events if k == "delegation"], order)
+        self.assertEqual([r["agentId"] for r in results], [*order, "orchestrator"])
+        self.assertFalse(any(k == "workflow_validation_failed" for k, d in events))
 
     def test_manager_delegates_every_stage_before_real_pdf(self):
         state = server.initial()
@@ -123,7 +158,7 @@ class StarterCrewTests(unittest.TestCase):
                             "context": json.dumps(
                                 {
                                     "artifacts": artifacts,
-                                    "previous_results": llm.config["comicStages"],
+                                    "previous_results": [],
                                 }
                             ),
                         },
@@ -191,7 +226,7 @@ class StarterCrewTests(unittest.TestCase):
                 for e in events
                 if e["type"] == "agent_completed" and not e["data"].get("manager")
             ]
-            self.assertEqual(completed, list(starter_crew.STAGES))
+            self.assertEqual(completed, list(starter_crew.SPECIALISTS))
             pdf = next(
                 e["data"]
                 for e in events

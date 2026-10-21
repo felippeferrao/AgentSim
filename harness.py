@@ -385,14 +385,6 @@ class IntegrationTool(BaseTool):
         )
         store = ArtifactStore(self.run_id, self.actor, self.event_sink)
         try:
-            if self.tool_id == "pdf-generator" and "comicStages" in self.llm_adapter.config:
-                from starter_crew import stage_problem
-
-                problem = stage_problem(
-                    self.llm_adapter.config["comicStages"], include_publisher=False
-                )
-                if problem:
-                    raise ValueError("Comic publication blocked: " + problem)
             urls = list(reference_urls or [])
             if self.tool_id == "pdf-generator" and request.lstrip().startswith("{"):
                 try:
