@@ -110,3 +110,21 @@ Execution history persists running/completed/failed/interrupted/rejected work an
 Images, PDFs and charts stay in the saved conversation and can be reused after reopening it. Ask to revise a PDF, reuse a character in another image, or turn an image into an illustrated story. “Use in next message” on an attachment inserts its reference. Reuse events in the execution column show which real files were read or embedded.
 
 With **Image Generator** and **PDF Generator** granted, ask: “Construa uma história em 5 capítulos sobre um cachorro viajante. Ilustre cada capítulo e monte um PDF com capa para um e-book.” The agent creates chapter text, actual chapter/cover images and the final PDF, with per-step evidence and an extended budget for that request. Previous images can serve as visual references. Source files remain local and ignored by Git.
+
+## License and credits
+
+Copyright © 2026 **Felippe da Silva Ferrão** — felippeferrao@wabix.net.
+**Powered By Wabix.**
+
+The [AgentSim Attribution and Brand Preservation License](LICENSE) allows
+use, copies, modifications and redistribution, including commercial use,
+while requiring preservation of the original authorship, license and
+application brand identification. Copies and modified applications must keep
+the visible footer credits. Modified distributions must identify their changes
+without implying endorsement. Third-party dependencies retain their own licenses.
+
+This is a custom project license rather than the [standard MIT License](https://opensource.org/license/mit),
+which requires preservation of its copyright/permission notice but does not
+contain this project's visible-footer and brand-preservation conditions.
+Earlier releases retain their original license terms. User-generated content
+is not required by this license to carry the application's branding.

@@ -1,24 +1,66 @@
-MIT License
+AgentSim Attribution and Brand Preservation License 1.0
 
-Copyright (c) 2026 Felippe Ferrao
+Copyright (c) 2026 Felippe da Silva Ferrão
+Contact: felippeferrao@wabix.net
+Project: WABIX AgentSim
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Permission
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Permission is granted, free of charge, to use, copy, modify, merge, publish,
+distribute and sell this software and its original accompanying documentation
+and visual assets (the "Software"), for personal or commercial purposes,
+subject to the conditions below. Separately identified third-party materials
+and dependencies remain subject to their respective licenses.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Preservation of authorship and license
 
-WABIX brand marks and supplied design/illustration assets are excluded from
-this software license. No trademark rights are granted.
+All copies and substantial portions of the Software, including modified
+versions, must retain this license, the copyright notice, the original
+author's full name and the contact address above. Recipients must receive
+these same permissions and preservation obligations. Additional contributor
+credits may be added, but must not replace or obscure the original credits.
+
+3. Visible attribution and brand preservation
+
+Copies and modified versions that provide an application user interface,
+including hosted versions, must display a legible, readily visible footer
+with the following attribution and brand credit:
+
+"Criado em 2026 por Felippe da Silva Ferrão - felippeferrao@wabix.net"
+"Powered By Wabix"
+
+The footer may be adapted for responsive layout or accurately translated,
+but the year, author's full name, contact address and Wabix brand credit
+must remain. Existing WABIX/Wabix and AgentSim identification and supplied
+brand marks must not be removed, hidden or replaced in copies or modified
+versions of this application. Additional branding is allowed if it does not
+obscure the original authorship or brand identification.
+
+For a distribution without a user interface, include the same attribution
+and brand credit prominently in its documentation or accompanying notices.
+
+4. Modified versions and trademarks
+
+Modified distributions must identify that they have been modified and who
+made the changes. They must not falsely imply that the original author or
+Wabix endorses, maintains or certifies those modifications.
+
+Permission to reproduce the supplied brand identification is limited to
+identifying this Software and complying with this license. No ownership of
+any trademark is transferred, and no permission is granted to use those
+marks for unrelated products or to imply an affiliation or endorsement.
+
+5. No warranty or liability
+
+The Software is provided "as is", without warranties of merchantability,
+fitness for a particular purpose or noninfringement. To the extent permitted
+by applicable law, the authors and copyright holders are not liable for
+claims, damages or other liability arising from use of the Software.
+
+6. Scope
+
+This is a project-specific license, not the standard MIT License. It applies
+to the Software distributed with this notice. It does not impose branding
+requirements on independent images, documents or other content generated
+by a user of the Software. It does not change permissions already granted
+for earlier releases under their respective licenses.

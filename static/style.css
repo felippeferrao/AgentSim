@@ -1691,3 +1691,33 @@ pre {
 
 .use-artifact { display: block; margin-top: 10px; font-size: 12px; padding: 6px 9px; }
 .execution-column .use-artifact { display: none; }
+
+/* Persistent attribution; keep both workspace columns clear of the footer. */
+body { padding-bottom: 60px; }
+.app-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px 24px;
+  min-height: 48px;
+  padding: 12px 24px;
+  border-top: 1px solid #e5eaf2;
+  background: #fff;
+  color: #657493;
+  font-size: 12px;
+}
+.app-footer a { color: inherit; text-underline-offset: 3px; }
+.app-footer strong { color: #152653; white-space: nowrap; }
+@media (min-width: 761px) {
+  aside { height: calc(100vh - 124px); }
+  .chat-workspace { height: max(400px, calc(100vh - 365px)); }
+}
+@media (max-width: 760px) {
+  body { padding-bottom: 100px; }
+  .app-footer { flex-wrap: wrap; padding: 10px 16px; font-size: 11px; }
+}

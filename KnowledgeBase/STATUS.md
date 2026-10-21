@@ -144,3 +144,10 @@ Live provider verification: Billy reused the existing PNG from conversation hist
 Controlled-provider verification separately covers five chapters plus cover with six real local PNG fixtures embedded in a six-page PDF, rejecting an incomplete chapter illustration count; HTTP/SSE conversation restoration and foreign catalog rejection; hierarchical manager file reading/delegated PDF generation; native CLI reference attachment; prior PDF extraction; generated-file/source symlink protection. The six-image book test does not represent six live image-generation requests.
 
 Final regression: 56 tests passed in 25.539 seconds; Ruff, JavaScript syntax and Git whitespace checks passed. After increasing the PDF reference limit for illustrated books to 120 MB (PNG references remain limited to 30 MB), the six targeted artifact/ebook tests passed again.
+
+
+## Application attribution and copying terms — 2026-10-21
+
+Added a persistent responsive footer with “Criado em 2026 por Felippe da Silva Ferrão - felippeferrao@wabix.net” on the left and “Powered By Wabix” on the opposite side. Reserved footer space in the page and desktop sidebar/chat heights. Verified the actual footer text and mailto link in the local browser; the current visual design is preserved.
+
+Replaced this version's MIT notice with the project-specific AgentSim Attribution and Brand Preservation License 1.0. It permits use, copying, modifications and commercial redistribution while requiring the author's full name/contact, license, visible application credits and existing brand identification to remain. Modified distributions must identify changes and avoid implying endorsement. Third-party licenses and permissions for prior releases remain unaffected; generated user content is not subjected to an application-branding requirement. README identifies the license as custom rather than standard MIT.
