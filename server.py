@@ -16,6 +16,7 @@ import harness
 import plugin_import
 import profiles
 import skill_files
+import starter_crew
 from conversation_store import ConversationStore
 from execution_context import resolve_target
 from execution_log import enrich
@@ -130,7 +131,7 @@ def recover_jobs():
             conversations().finish(job)
 
 
-def initial():
+def legacy_initial():
     return {
         "agents": [
             {"id": r.lower(), "name": r, "job": j, "tools": [], "skills": [], "mcp": []}
@@ -152,6 +153,10 @@ def initial():
     }
 
 
+def initial():
+    return starter_crew.build(CATALOG)
+
+
 def blank():
     state = initial()
     state["agents"] = []
@@ -160,33 +165,24 @@ def blank():
 
 
 def load_examples(state):
-    if any(a.get("example") for a in state["agents"]):
-        return state
-    mapping = {}
-    for a in initial()["agents"]:
-        a["id"] = "example-" + a["id"] + "-" + uuid.uuid4().hex[:6]
-        a["example"] = True
-        mapping[a["name"].lower()] = a["id"]
-        state["agents"].append(a)
-    state["teams"].append(
-        {
-            "id": "example-team-" + uuid.uuid4().hex[:6],
-            "name": "Example research team",
-            "agents": list(mapping.values()),
-            "example": True,
-        }
-    )
+    example = initial()
+    existing = {a["id"] for a in state["agents"]}
+    for agent in example["agents"]:
+        if agent["id"] not in existing:
+            state["agents"].append(agent)
+    if not any(t["id"] == starter_crew.TEAM_ID for t in state["teams"]):
+        state["teams"].extend(example["teams"])
     return state
 
 
 def read():
     with connect() as db:
         row = db.execute("SELECT data FROM state WHERE id=1").fetchone()
-    state = json.loads(row[0]) if row else blank()
+    state = json.loads(row[0]) if row else initial()
     before_migration = __import__("copy").deepcopy(state)
     state["catalog"]["tools"] = __import__("copy").deepcopy(CATALOG["tools"])
     # Migration labels the original bundled configurations; never resets user data.
-    defaults = {a["id"]: a for a in initial()["agents"]}
+    defaults = {a["id"]: a for a in legacy_initial()["agents"]}
     for a in state["agents"]:
         original = defaults.get(a["id"])
         if (
@@ -217,7 +213,7 @@ def read():
             a["model"]["connection"] = (
                 old.get("provider") if old.get("provider") in ("chatgpt", "api") else "chatgpt"
             )
-    if row and state != before_migration:
+    if not row or state != before_migration:
         save(state)
     state["catalog"]["mcp"] = CATALOG["mcp"] + external_mcp.connections()
     allowed = {m["id"] + ":" + t["id"] for m in state["catalog"]["mcp"] for t in m["tools"]}

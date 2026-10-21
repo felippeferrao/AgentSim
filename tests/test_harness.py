@@ -282,7 +282,7 @@ server.run(transport="stdio")
             )
 
     def test_manager_chooses_skill_and_worker_receives_it_before_execution(self):
-        state = server.initial()
+        state = server.legacy_initial()
         state["teams"][0]["manager"] = "reviewer"
         state["catalog"]["skills"].append(
             skill_files.parse_markdown(

@@ -19,3 +19,8 @@ Architecture shows the browser, Python API/background jobs, CrewAI, Responses AP
 - Actual CrewAI with a scripted LLM: manager delegates to Writer, asks it a question, delegates a revision, skips Researcher, and combines the responses. Tests verify actual worker execution, ordering, per-agent model usage, manager/worker token aggregation and exclusion of raw private reasoning.
 - Actual local HTTP Responses/SSE path: a manager's delegation is observed while the job is still running, then a worker reply and final manager answer complete automatically and persist. Controlled provider counts are not external AI usage.
 - A separate temporary application on port 8081, with fixture credentials and a controlled local provider, is used for browser activity checks. It does not use the user's database or account. Screenshots containing fixture text are named watch-managed-fixture-*.png.
+
+
+## Comic Story Studio preset
+
+The named production crew is specified in `examples/comic-studio/configuration.json`. Its manager coordinates Oliver → Maya → Ethan → Sofia → Noah and may revisit earlier stages for corrections. The runtime verifies actual specialist completions and their latest dependency order; an APPROVED review of superseded material is insufficient. `harness.IntegrationTool` blocks the PDF publisher until approval. Generic user-created teams retain their existing manager-led behavior. See the starter README for responsibilities, tool permissions and reset/seed boundaries.

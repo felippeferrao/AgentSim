@@ -30,7 +30,7 @@ class ProfileTests(unittest.TestCase):
             patch.object(server, "DB", Path(d) / "state.db"),
             patch.object(auth, "LOCAL", Path(d) / "private"),
         ):
-            old = server.initial()
+            old = server.legacy_initial()
             old["agents"][0]["tools"] = ["calculator"]
             server.save(old)
             migrated = server.read()
@@ -47,24 +47,24 @@ class ProfileTests(unittest.TestCase):
             self.assertIn("profileVersion", stored)
             self.assertEqual(server.read(), migrated)
 
-    def test_empty_first_start_and_examples_are_explicit_non_destructive(self):
+    def test_starter_first_start_and_examples_are_non_destructive(self):
         with (
             tempfile.TemporaryDirectory() as d,
             patch.object(server, "DB", Path(d) / "new.db"),
             patch.object(auth, "LOCAL", Path(d) / "private"),
         ):
-            self.assertEqual(server.read()["agents"], [])
+            self.assertEqual(len(server.read()["agents"]), 6)
             state = server.blank()
-            mine = copy.deepcopy(server.initial()["agents"][0])
+            mine = copy.deepcopy(server.legacy_initial()["agents"][0])
             mine.update(id="mine", name="My helper", job="My own goal")
             state["agents"] = [mine]
             result = server.load_examples(state)
             self.assertEqual(result["agents"][0], mine)
-            self.assertEqual(len(result["agents"]), 4)
-            self.assertEqual(len(server.load_examples(result)["agents"]), 4)
+            self.assertEqual(len(result["agents"]), 7)
+            self.assertEqual(len(server.load_examples(result)["agents"]), 7)
 
     def test_rich_profile_round_trip_and_validation(self):
-        state = server.initial()
+        state = server.legacy_initial()
         a = profiles.normalize(state["agents"][0])
         a.update(
             role="Picnic researcher",
@@ -102,7 +102,7 @@ class ProfileTests(unittest.TestCase):
             profiles.validate(bad)
 
     def test_crewai_profile_mapping_and_heterogeneous_agent_models(self):
-        state = server.initial()
+        state = server.legacy_initial()
         state["teams"][0]["agents"] = state["teams"][0]["agents"][:2]
         first = profiles.normalize(state["agents"][0])
         first.update(

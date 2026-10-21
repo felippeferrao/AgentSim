@@ -77,8 +77,26 @@ class ArtifactReader(BaseTool):
             raw = source.read_text()
             if len(raw) <= 40000:
                 source_data = json.loads(raw)
+        inspection = {}
         if item["extension"] == "pdf":
-            text = "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
+            document = PdfReader(path)
+            text = "\n".join(page.extract_text() or "" for page in document.pages)
+            inspection = {
+                "pages": len(document.pages),
+                "embeddedImages": sum(len(page.images) for page in document.pages),
+            }
+        elif item["extension"] == "png":
+            import hashlib
+
+            from PIL import Image
+
+            with Image.open(path) as image:
+                inspection = {
+                    "width": image.width,
+                    "height": image.height,
+                    "sha256": hashlib.sha256(image.convert("RGB").tobytes()).hexdigest(),
+                }
+            text = "Verified local PNG dimensions and pixel fingerprint. The source contains the recorded generation prompt when available. This metadata check is not a visual inspection of image contents."
         elif path.with_suffix(".source.json").is_file():
             source = path.with_suffix(".source.json")
             if (
@@ -98,6 +116,7 @@ class ArtifactReader(BaseTool):
                 "url": url,
                 "content": text[:40000],
                 "source": source_data,
+                "inspection": inspection,
                 "truncated": len(text) > 40000,
             }
         )

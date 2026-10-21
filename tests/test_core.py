@@ -11,7 +11,7 @@ from runtime import ResponsesLLM, calculate, execute, mcp_call
 
 
 class CoreTests(unittest.TestCase):
-    def test_new_installation_creates_empty_database_without_credentials(self):
+    def test_new_installation_creates_starter_database_without_credentials(self):
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "fresh.sqlite3"
             credentials = Path(directory) / "credentials"
@@ -19,30 +19,30 @@ class CoreTests(unittest.TestCase):
                 self.assertFalse(database.exists())
                 state = server.read()
                 self.assertTrue(database.is_file())
-                self.assertEqual(state["agents"], [])
-                self.assertEqual(state["teams"], [])
+                self.assertEqual(len(state["agents"]), 6)
+                self.assertEqual(state["teams"][0]["manager"], "clara")
                 self.assertEqual(state["runs"], [])
                 self.assertEqual(server.execution_history(), [])
                 self.assertFalse(credentials.exists())
 
     def test_import_rejects_unknown_permissions_and_code(self):
-        s = server.initial()
+        s = server.legacy_initial()
         s["agents"][0]["mcp"] = ["documents:delete"]
         with self.assertRaises(ValueError):
             server.validate(s)
-        s = server.initial()
+        s = server.legacy_initial()
         s["agents"][0]["command"] = "rm anything"
         with self.assertRaises(ValueError):
             server.validate(s)
 
     def test_import_rejects_broken_membership(self):
-        s = server.initial()
+        s = server.legacy_initial()
         s["teams"][0]["agents"] = ["missing"]
         with self.assertRaises(ValueError):
             server.validate(s)
 
     def test_demo_is_deterministic_and_never_real_usage(self):
-        s = server.initial()
+        s = server.legacy_initial()
         b = {"goal": "Plan a picnic", "team": "research"}
         a = server.make_run(s, b)
         c = server.make_run(s, b)
@@ -160,7 +160,7 @@ class CoreTests(unittest.TestCase):
             self.assertFalse(auth.connection_status()["ready"])
 
     def test_skill_import_is_declarative_and_never_grants_tools(self):
-        s = copy.deepcopy(server.initial())
+        s = copy.deepcopy(server.legacy_initial())
         skill = {
             "id": "budget",
             "name": "Budget",
@@ -193,7 +193,7 @@ class CoreTests(unittest.TestCase):
 
     def test_actual_crewai_tasks_with_scripted_provider(self):
         # Integration test of real CrewAI; scripted LLM is NOT external inference.
-        state = server.initial()
+        state = server.legacy_initial()
         for helper in state["agents"]:
             helper["model"] = {
                 "mode": "custom",

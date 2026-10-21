@@ -96,14 +96,13 @@ class ObservedAgent(Agent):
                 manager=True,
             ),
         ]
-        if self.llm.config.get("conversationArtifacts"):
-            from artifact_history import ArtifactReader
+        from artifact_history import ArtifactReader
 
-            tools.append(
-                ArtifactReader(
-                    config=self.llm.config, actor=self.profile_data, event_sink=self.event_sink
-                )
+        tools.append(
+            ArtifactReader(
+                config=self.llm.config, actor=self.profile_data, event_sink=self.event_sink
             )
+        )
         return tools
 
     def execute_task(self, task, context=None, tools=None):
@@ -183,6 +182,16 @@ def execute_managed(state, body, emit, config):
     if not goal or len(goal) > 8000:
         raise ValueError("Write a message (up to 8000 characters).")
     results = []
+    import starter_crew
+
+    if team["id"] == starter_crew.TEAM_ID:
+        from ebook_workflow import plan
+
+        config["comicStages"] = results
+        config["ebookWorkflow"] = plan(goal + " illustrated cover 5 chapters")
+        config["ebookWorkflow"]["maxExecutionSeconds"] = max(
+            1200, config["ebookWorkflow"]["maxExecutionSeconds"]
+        )
     skill_selections = {}
     workers = []
     manager = None
@@ -214,6 +223,14 @@ def execute_managed(state, body, emit, config):
         f"- {a.role}: {a.profile_data['goal']}. Expected result: {a.profile_data['expectedOutput']}"
         for a in workers
     )
+    pdf_check = pdf_result_guardrail(
+        goal + (" PDF" if team["id"] == starter_crew.TEAM_ID else ""), config, emit
+    )
+    final_check = (
+        starter_crew.completion_guardrail(config, results, emit, pdf_check)
+        if team["id"] == starter_crew.TEAM_ID
+        else pdf_check
+    )
     task = Task(
         description=(
             f"Current user message: {goal}{conversation_prompt(body)}\nYou are the team's manager. Decide which agents to involve and in what order. "
@@ -227,7 +244,7 @@ def execute_managed(state, body, emit, config):
             + ", ".join(a["id"] + "=" + a["name"] for a in members)
         ),
         expected_output=manager_profile["expectedOutput"],
-        guardrail=pdf_result_guardrail(goal, config, emit),
+        guardrail=final_check,
         guardrail_max_retries=1,
     )
     emit("run_started", {"orchestration": "managed", "managerId": manager_profile["id"]})

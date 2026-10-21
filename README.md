@@ -26,7 +26,7 @@ Open **http://127.0.0.1:8080**. Use `PORT=8081 ./start.sh` to change ports. The 
 
 ## Your workspace
 
-**Home** is a short dashboard with Agents, Teams, Tools, Skills, MCP Connections and Watch & run cards. It explains counts and next steps. It does not start a run. Data is persistent SQLite in `agentsim.db`, not temporary in-memory state. A new installation starts empty. You can explicitly load examples without overwriting your own agents. Existing original samples are labeled Example configuration; saved setup is not proof of an AI request.
+**Home** is a short dashboard with Agents, Teams, Tools, Skills, MCP Connections and Watch & run cards. It explains counts and next steps. It does not start a run. Data is persistent SQLite in `agentsim.db`, not temporary in-memory state. A new installation starts with the clean Comic Story Studio example: six named agents and one managed crew. You can edit the example or keep your own agents. Existing original samples are labeled Example configuration; saved setup is not proof of an AI request.
 
 When Home opens with no provider-verified connection, Connection setup opens automatically. A saved token/key is not presented as successful access: the backend checks the provider's models endpoint. Dismissing the dialog still allows configuration; real execution remains blocked until access is verified.
 
@@ -67,7 +67,7 @@ Credentials stay in ignored `.local/` files, written atomically with `0600` perm
 
 ### Local data and GitHub distribution
 
-GitHub distributes the application source, assets and dependency lockfile. Each installation creates its own SQLite database automatically on first use; no database, saved conversations, generated outputs or personal connection configuration is shipped. The default database is `agentsim.db`; `AGENTSIM_DB` can select another local SQLite file. Database files and their journal/WAL files are ignored by Git.
+GitHub distributes the application source, assets and dependency lockfile. Each installation creates its own SQLite database automatically on first use; no personal database, saved conversations, generated outputs or personal connection configuration is shipped. The only versioned database is the sanitized configuration-only starter fixture at `examples/comic-studio/starter.sqlite3`, matching `configuration.json`. The default database is `agentsim.db`; `AGENTSIM_DB` can select another local SQLite file. Operational database files and their journal/WAL files are ignored by Git; only that explicitly named starter fixture is exempt.
 
 Configure your own ChatGPT/OpenAI connection locally after cloning. Credentials, OAuth sessions, native image runtime state and generated artifacts remain under ignored `.local/`. Environment files, common credential filenames and private key files are also ignored. Never add real secrets to source code or examples, or force-add ignored local files. Publishing this repository does not publish a running service or share the owner's account: the application listens only on `127.0.0.1`.
 

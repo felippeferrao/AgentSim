@@ -19,3 +19,6 @@ work/
 .venv/
 .local/
 .playwright-cli/
+
+# Only the sanitized, configuration-only starter fixture is versioned.
+!examples/comic-studio/starter.sqlite3

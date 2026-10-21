@@ -144,7 +144,7 @@ class ExternalMCPTests(unittest.TestCase):
     def test_actual_crewai_calls_external_tool_with_scripted_llm(self):
         self.connection()
         record = self.discover()
-        state = server.initial()
+        state = server.legacy_initial()
         state["catalog"]["mcp"] = state["catalog"]["mcp"] + [record]
         state["agents"][0]["mcp"] = ["controlled:count_items"]
         state["agents"][0]["model"] = {
@@ -258,7 +258,7 @@ class ExternalMCPTests(unittest.TestCase):
         self.assertFalse(status["ready"])
 
     def test_plain_import_cannot_install_connection(self):
-        state = server.initial()
+        state = server.legacy_initial()
         state["catalog"]["mcp"].append({"id": "unregistered", "name": "No", "tools": []})
         with self.assertRaisesRegex(ValueError, "Imports cannot"):
             server.validate(state)

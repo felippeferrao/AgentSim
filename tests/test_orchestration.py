@@ -14,7 +14,7 @@ from runtime import ResponsesLLM, execute
 
 class OrchestrationTests(unittest.TestCase):
     def state(self):
-        state = server.initial()
+        state = server.legacy_initial()
         state["teams"][0]["manager"] = "reviewer"
         for a in state["agents"]:
             a.update(profiles.normalize(a))

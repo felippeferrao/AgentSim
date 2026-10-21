@@ -15,3 +15,5 @@ This folder is the source of project requirements and delivery truth. It is not 
 - [Harness integrations, skills, plugins and execution evidence](HARNESS_INTEGRATIONS.md)
 
 - [Chat execution, target selection and conversation context](CHAT_EXECUTION.md)
+
+- [Comic Story Studio starter crew and clean database](../examples/comic-studio/README.md)

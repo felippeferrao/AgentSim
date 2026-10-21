@@ -103,7 +103,7 @@ class AppTests(unittest.TestCase):
         return httpx.post(self.base + path, json=body, timeout=20)
 
     def configured_state(self):
-        state = server.initial()
+        state = server.legacy_initial()
         state["teams"][0]["agents"] = state["teams"][0]["agents"][:2]
         for i, a in enumerate(state["agents"]):
             a.update(profiles.normalize(a))
@@ -332,15 +332,15 @@ class AppTests(unittest.TestCase):
         )
 
     def test_explicit_examples_and_import_export_shape(self):
-        self.assertEqual(httpx.get(self.base + "state").json()["agents"], [])
+        self.assertEqual(len(httpx.get(self.base + "state").json()["agents"]), 6)
         response = self.post("examples", {})
         self.assertEqual(response.status_code, 200)
         state = response.json()
-        self.assertEqual(len(state["agents"]), 3)
+        self.assertEqual(len(state["agents"]), 6)
         self.assertTrue(all(a["example"] for a in state["agents"]))
         self.assertIn("model", state["agents"][0])
         self.assertEqual(self.post("state", state).status_code, 200)
-        self.assertEqual(len(self.post("examples", {}).json()["agents"]), 3)
+        self.assertEqual(len(self.post("examples", {}).json()["agents"]), 6)
 
     def test_chat_calls_selected_agent_without_team_and_retains_context(self):
         state = self.configured_state()

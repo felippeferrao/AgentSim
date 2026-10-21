@@ -344,10 +344,9 @@ def builtin_tools(a, emit, llm, catalog):
             )(document_id=document_id)
 
         assigned.append(documents_read)
-    if llm.config.get("conversationArtifacts"):
-        from artifact_history import ArtifactReader
+    from artifact_history import ArtifactReader
 
-        assigned.append(ArtifactReader(config=llm.config, actor=a, event_sink=emit))
+    assigned.append(ArtifactReader(config=llm.config, actor=a, event_sink=emit))
     assigned.extend(harness.integration_tools(a, llm, emit, llm.config.get("run_id", "standalone")))
     assigned.extend(http_tools(a, catalog, emit, llm))
     return assigned
