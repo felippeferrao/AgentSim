@@ -16,7 +16,7 @@ import native_images
 
 
 class NativeImageTests(unittest.TestCase):
-    def exercise(self, produce=True, failure=False):
+    def exercise(self, produce=True, failure=False, reference=False):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         private = Path(temporary.name)
@@ -80,6 +80,13 @@ class NativeImageTests(unittest.TestCase):
 
         events = []
         llm = SimpleNamespace(config={"provider": "chatgpt"}, current=0, usage=[])
+        references = []
+        if reference:
+            item = harness.ArtifactStore(
+                "previous-turn", {"id": "billy", "name": "Billy"}, lambda *args: None
+            ).write("Previous character", "png", png)
+            llm.config["conversationArtifacts"] = [item]
+            references = [item["url"]]
         actor = {"id": "billy", "name": "Billy", "tools": ["image-generator"]}
         tool = harness.integration_tools(
             actor, llm, lambda k, d: events.append((k, d)), "native-test"
@@ -94,7 +101,7 @@ class NativeImageTests(unittest.TestCase):
             ),
         ):
             try:
-                result = tool._run("A blue test illustration")
+                result = tool._run("A blue test illustration", reference_urls=references)
             except ValueError as exc:
                 result = exc
             hosted.assert_not_called()
@@ -133,6 +140,16 @@ class NativeImageTests(unittest.TestCase):
         self.assertIsInstance(result, ValueError)
         self.assertNotIn("fixture-secret", str(result) + str(events))
         self.assertNotIn("artifact_created", [kind for kind, _ in events])
+
+    def test_prior_image_is_attached_to_native_runtime(self):
+        private, result, events, commands, llm = self.exercise(reference=True)
+        self.assertNotIsInstance(result, ValueError)
+        command = commands[0][0]
+        self.assertIn("--image", command)
+        attached = Path(command[command.index("--image") + 1])
+        self.assertTrue(attached.is_file())
+        self.assertIn("previous-turn", str(attached))
+        self.assertIn("artifact_reused", [kind for kind, _ in events])
 
     def test_image_answer_requires_a_real_tool_artifact(self):
         from runtime import image_result_guardrail

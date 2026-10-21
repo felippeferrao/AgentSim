@@ -13,6 +13,7 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 import auth
+from artifact_history import resolve_reference, reuse_event
 from native_images import ChatGPTImageRuntime
 
 CATALOG = [
@@ -25,12 +26,12 @@ CATALOG = [
     {
         "id": "pdf-generator",
         "name": "PDF Generator",
-        "description": "Create a formatted, downloadable PDF report with ReportLab.",
+        "description": "Create a real PDF with ReportLab. For illustrated stories/comics, request JSON {pages:[{text: caption, image_url: generated_PNG_URL}]}. For ebooks use {cover:{image_url:URL,subtitle:TEXT},chapters:[{title:TITLE,text:FULL_CHAPTER,image_url:URL}]}. Reuse prior images or generate scenes first; reference_urls embeds images with plain text too.",
     },
     {
         "id": "image-generator",
         "name": "Image Generator",
-        "description": "Generate PNG images with ChatGPT's native image runtime, using your ChatGPT plan without an API key.",
+        "description": "Generate PNG images with ChatGPT's native image runtime. Pass reference_urls from conversation history to reuse a character/style in a new scene. Results can be embedded by pdf_generator.",
     },
     {
         "id": "chart-generator",
@@ -48,7 +49,7 @@ class ArtifactStore:
     def __init__(self, run_id, actor, emit):
         self.run_id, self.actor, self.emit = run_id, actor, emit
 
-    def write(self, title, extension, data):
+    def write(self, title, extension, data, metadata=None):
         ident = uuid.uuid4().hex
         folder = artifact_root() / self.run_id
         folder.mkdir(parents=True, exist_ok=True)
@@ -63,6 +64,7 @@ class ArtifactStore:
             "bytes": path.stat().st_size,
             "agentId": self.actor["id"],
             "agent": self.actor["name"],
+            **(metadata or {}),
         }
         self.emit(
             "artifact_created",
@@ -78,12 +80,12 @@ class ArtifactStore:
 
 class PDFGenerator:
     @staticmethod
-    def render(title, content):
+    def render(title, content, images=None):
         from reportlab.lib import colors
         from reportlab.lib.enums import TA_LEFT
         from reportlab.lib.styles import getSampleStyleSheet
         from reportlab.lib.units import cm
-        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+        from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
         buffer = io.BytesIO()
         styles = getSampleStyleSheet()
@@ -91,11 +93,73 @@ class PDFGenerator:
         styles["BodyText"].leading = 16
         styles["BodyText"].alignment = TA_LEFT
         story = [Paragraph(escape(title), styles["Title"]), Spacer(1, 0.5 * cm)]
-        for paragraph in content.split("\n\n"):
-            story += [
-                Paragraph(escape(paragraph).replace("\n", "<br/>"), styles["BodyText"]),
-                Spacer(1, 0.3 * cm),
-            ]
+        images = images or {}
+        pages = None
+        cover = None
+        if content.lstrip().startswith("{"):
+            try:
+                spec = json.loads(content)
+                pages = spec.get("chapters", spec.get("pages")) if isinstance(spec, dict) else None
+                cover = spec.get("cover") if isinstance(spec, dict) else None
+            except ValueError:
+                pass
+        if pages is not None and (
+            not isinstance(pages, list)
+            or not 1 <= len(pages) <= 40
+            or any(not isinstance(p, dict) for p in pages)
+        ):
+            raise ValueError("Illustrated PDF needs 1–40 page objects with text and image_url.")
+
+        def illustration(url):
+            if url not in images:
+                raise ValueError(
+                    "PDF illustration must reference a generated PNG from this conversation."
+                )
+            from PIL import Image as PillowImage
+
+            with PillowImage.open(images[url]) as source:
+                width, height = source.size
+            scale = min(17 * cm / width, 16 * cm / height)
+            story.extend(
+                [
+                    Image(str(images[url]), width=width * scale, height=height * scale),
+                    Spacer(1, 0.3 * cm),
+                ]
+            )
+
+        if cover is not None:
+            if not isinstance(cover, dict) or pages is None:
+                raise ValueError("An ebook cover requires a chapters or pages list.")
+            if cover.get("image_url"):
+                illustration(cover["image_url"])
+            if cover.get("subtitle"):
+                story.extend(
+                    [
+                        Paragraph(escape(str(cover["subtitle"])), styles["Heading2"]),
+                        Spacer(1, 0.5 * cm),
+                    ]
+                )
+            story.append(PageBreak())
+        for index, page in enumerate(pages or [{"text": content}]):
+            if index:
+                story.append(PageBreak())
+            if page.get("title"):
+                story.extend(
+                    [Paragraph(escape(str(page["title"])), styles["Heading1"]), Spacer(1, 0.3 * cm)]
+                )
+            if page.get("image_url"):
+                illustration(page["image_url"])
+            for paragraph in str(page.get("text", "")).split("\n\n"):
+                story.extend(
+                    [
+                        Paragraph(escape(paragraph).replace("\n", "<br/>"), styles["BodyText"]),
+                        Spacer(1, 0.3 * cm),
+                    ]
+                )
+        if pages is None:
+            for url in images:
+                story.append(PageBreak())
+                illustration(url)
 
         def footer(canvas, document):
             canvas.setFont("Helvetica", 9)
@@ -256,6 +320,11 @@ class IntegrationArgs(BaseModel):
         description="For web-research: search query. For image-generator: image prompt. For PDF: report body text. For chart: a JSON string containing a Plotly figure object with data and layout."
     )
     title: str = Field(default="Agent result", description="Output title")
+    reference_urls: list[str] = Field(
+        default_factory=list,
+        max_length=12,
+        description="Exact prior generated PNG URLs to reuse. Image: visual references for a new variation. PDF: embed illustrations; request can be JSON {pages:[{text: caption, image_url: URL}]} for an illustrated comic. Other tools: leave empty.",
+    )
 
 
 class IntegrationTool(BaseTool):
@@ -266,7 +335,7 @@ class IntegrationTool(BaseTool):
     event_sink: object = Field(exclude=True)
     run_id: str
 
-    def _run(self, request, title="Agent result"):
+    def _run(self, request, title="Agent result", reference_urls=None):
         if not isinstance(request, str) or not 0 < len(request) <= 100_000:
             raise ValueError("Tool request must contain 1-100000 characters.")
         where = (
@@ -308,9 +377,68 @@ class IntegrationTool(BaseTool):
         )
         store = ArtifactStore(self.run_id, self.actor, self.event_sink)
         try:
+            urls = list(reference_urls or [])
+            if self.tool_id == "pdf-generator" and request.lstrip().startswith("{"):
+                try:
+                    spec = json.loads(request)
+                    if isinstance(spec, dict) and isinstance(
+                        spec.get("chapters", spec.get("pages")), list
+                    ):
+                        if isinstance(spec.get("cover"), dict) and spec["cover"].get("image_url"):
+                            urls.append(spec["cover"]["image_url"])
+                        urls.extend(
+                            p["image_url"]
+                            for p in spec.get("chapters", spec.get("pages"))
+                            if isinstance(p, dict) and p.get("image_url")
+                        )
+                except ValueError:
+                    pass
+            urls = list(dict.fromkeys(urls))
+            if len(urls) > 40:
+                raise ValueError("Use at most 40 generated illustrations per document.")
+            references = [resolve_reference(self.llm_adapter.config, url) for url in urls]
+            if any(item["extension"] != "png" for item, path in references):
+                raise ValueError(
+                    "Image references and PDF illustrations must be generated PNG files."
+                )
+            if references:
+                if self.tool_id not in ("image-generator", "pdf-generator"):
+                    raise ValueError("This integration does not accept image references.")
+                if self.tool_id == "image-generator" and not native_images:
+                    raise ValueError("Image references require the native ChatGPT image session.")
+                reuse_event(
+                    self.event_sink, self.actor, [item for item, _ in references], self.tool_id
+                )
+            image_paths = {item["url"]: path for item, path in references}
             if self.tool_id == "pdf-generator":
+                try:
+                    document = json.loads(request)
+                except ValueError:
+                    document = {}
+                if not isinstance(document, dict):
+                    document = {}
+                chapters = document.get("chapters", [])
+                structure = {
+                    "hasCover": isinstance(document.get("cover"), dict),
+                    "coverIllustrated": bool((document.get("cover") or {}).get("image_url"))
+                    if isinstance(document.get("cover"), dict)
+                    else False,
+                    "chapterCount": len(chapters) if isinstance(chapters, list) else 0,
+                    "illustratedChapters": sum(
+                        bool(c.get("image_url")) for c in chapters if isinstance(c, dict)
+                    )
+                    if isinstance(chapters, list)
+                    else 0,
+                }
                 result = {
-                    "artifacts": [store.write(title, "pdf", PDFGenerator.render(title, request))]
+                    "artifacts": [
+                        store.write(
+                            title,
+                            "pdf",
+                            PDFGenerator.render(title, request, image_paths),
+                            {"document": structure},
+                        )
+                    ]
                 }
             elif self.tool_id == "chart-generator":
                 html, png, svg = ChartGenerator.render(json.loads(request))
@@ -323,7 +451,11 @@ class IntegrationTool(BaseTool):
                 }
             elif native_images:
                 images = ChatGPTImageRuntime.generate(
-                    request, self.llm_adapter, self.event_sink, self.actor
+                    request,
+                    self.llm_adapter,
+                    self.event_sink,
+                    self.actor,
+                    list(image_paths.values()),
                 )
                 result = {"artifacts": [store.write(title, "png", data) for data in images]}
             elif self.tool_id == "image-generator" and ImageProvider.settings()["configured"]:
@@ -387,6 +519,14 @@ class IntegrationTool(BaseTool):
                 },
             )
             raise ValueError(message) from None
+        for item in result.get("artifacts", []):
+            self.llm_adapter.config.setdefault("conversationArtifacts", []).append(item)
+            if self.tool_id in ("pdf-generator", "chart-generator"):
+                from artifact_history import artifact_path
+
+                artifact_path(item).with_suffix(".source.json").write_text(
+                    json.dumps({"request": request, "reference_urls": urls}, ensure_ascii=False)
+                )
         if self.tool_id == "image-generator":
             if not hasattr(self.llm_adapter, "generated_images"):
                 self.llm_adapter.generated_images = []

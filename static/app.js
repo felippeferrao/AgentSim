@@ -339,6 +339,13 @@ function renderChatMessages() {
     '<div class="chat-empty"><h3>Start a conversation</h3><p>Send a message. The selected agent or team will reply here, while actions and results appear alongside.</p></div>';
   if (busy)
     el.innerHTML += `<div class="chat-bubble from-agent" role="status">Working on your message… Follow the execution on the right.${run?.conversationId === activeConversation?.id && run?.id === activeConversation?.activeRunId ? artifactCards(run) : ""}</div>`;
+  el.querySelectorAll("[data-reference]").forEach((button) => {
+    button.onclick = () => {
+      messageDraft = `${messageDraft}${messageDraft ? "\n" : ""}Use this generated file as reference: ${button.dataset.title} (${button.dataset.reference}).\n`;
+      $("#chatMessage").value = messageDraft;
+      $("#chatMessage").focus();
+    };
+  });
   el.scrollTop = follow ? el.scrollHeight : old;
   el.querySelectorAll("[data-turn]").forEach(
     (b) => (b.onclick = () => selectExecution(b.dataset.turn)),
@@ -1187,7 +1194,7 @@ function artifactCards(record = run) {
       .filter((e) => e.type === "artifact_created")
       .map((e) => e.data);
   if (!items.length) return "";
-  return `<section class="panel"><h2>Generated results</h2><div class="artifact-grid">${items.map((a) => `<article class="artifact-card"><h3>${esc(a.title)}</h3><small>${esc(a.agent)} · ${esc(a.extension.toUpperCase())} · ${esc(a.bytes)} bytes</small>${a.extension === "png" ? `<img src="${esc(a.url)}" alt="${esc(a.title)}" loading="lazy">` : a.extension === "html" ? `<iframe src="${esc(a.url)}" sandbox="allow-scripts" title="${esc(a.title)}" loading="lazy"></iframe>` : a.extension === "pdf" ? `<div class="pdf-attachment"><span aria-hidden="true">▤</span><b>PDF document</b><p>Open the report to view its pages.</p></div>` : ""}<a href="${esc(a.url)}" target="_blank" rel="noopener">Open ${esc(a.extension.toUpperCase())}</a> · <a href="${esc(a.url)}" download>Download</a></article>`).join("")}</div></section>`;
+  return `<section class="panel"><h2>Generated results</h2><div class="artifact-grid">${items.map((a) => `<article class="artifact-card"><h3>${esc(a.title)}</h3><small>${esc(a.agent)} · ${esc(a.extension.toUpperCase())} · ${esc(a.bytes)} bytes</small>${a.extension === "png" ? `<img src="${esc(a.url)}" alt="${esc(a.title)}" loading="lazy">` : a.extension === "html" ? `<iframe src="${esc(a.url)}" sandbox="allow-scripts" title="${esc(a.title)}" loading="lazy"></iframe>` : a.extension === "pdf" ? `<div class="pdf-attachment"><span aria-hidden="true">▤</span><b>PDF document</b><p>Open the report to view its pages.</p></div>` : ""}<a href="${esc(a.url)}" target="_blank" rel="noopener">Open ${esc(a.extension.toUpperCase())}</a> · <a href="${esc(a.url)}" download>Download</a>${activeConversation ? `<button class="use-artifact" data-reference="${esc(a.url)}" data-title="${esc(a.title)}" ${busy ? "disabled" : ""}>Use in next message</button>` : ""}</article>`).join("")}</div></section>`;
 }
 function interactionTimeline(record = run) {
   const events = record?.events || [];
@@ -1212,6 +1219,10 @@ function interactionTimeline(record = run) {
       let body = "";
       if (["delegation", "reply"].includes(e.type))
         body = `<h3>${esc(d.from)} → ${esc(d.to)}</h3><p>${esc(d.message)}</p>${d.context ? `<details><summary>Shared context</summary><p>${esc(d.context)}</p></details>` : ""}`;
+      else if (e.type === "workflow_budget")
+        body = `<h3>Illustrated ebook · ${esc(d.chapters)} chapters</h3><p>Write chapters → generate ${esc(d.illustrations)} illustrations including the cover → assemble and verify the PDF.</p><p>Execution budget: ${esc(d.maxExecutionSeconds)} seconds · ${esc(d.maxIterations)} agent iterations.</p>`;
+      else if (e.type === "artifact_reused")
+        body = `<h3>Generated files reused</h3><p>${esc(d.agent)} selected these files as inputs.</p><ul>${(d.references || []).map(a => `<li><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a></li>`).join("")}</ul>`;
       else if (e.type === "skill_selected")
         body = `<h3>Skill chosen: ${esc(d.skill)}</h3><p>${esc(d.selectedBy)} selected this skill for ${esc(d.agent)}.</p><p><b>Why:</b> ${esc(d.reason)}</p>`;
       else if (e.type === "skill_applied")

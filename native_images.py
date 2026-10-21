@@ -90,7 +90,7 @@ class ChatGPTImageRuntime:
             return {"url": url}
 
     @staticmethod
-    def generate(prompt, llm, emit, actor):
+    def generate(prompt, llm, emit, actor, reference_paths=None):
         if not ChatGPTImageRuntime.settings()["configured"]:
             raise ValueError(
                 "Connect the native ChatGPT image session in Tools → Image Generator. No API key is required."
@@ -98,12 +98,12 @@ class ChatGPTImageRuntime:
         if not _GENERATION_LOCK.acquire(blocking=False):
             raise ValueError("A native image generation is already running. Wait for its result.")
         try:
-            return ChatGPTImageRuntime._generate(prompt, llm, emit, actor)
+            return ChatGPTImageRuntime._generate(prompt, llm, emit, actor, reference_paths)
         finally:
             _GENERATION_LOCK.release()
 
     @staticmethod
-    def _generate(prompt, llm, emit, actor):
+    def _generate(prompt, llm, emit, actor, reference_paths=None):
         from PIL import Image
 
         executable = shutil.which("codex")
@@ -149,6 +149,8 @@ class ChatGPTImageRuntime:
             str(job),
             "-",
         ]
+        for path in reference_paths or []:
+            command[-1:-1] = ["--image", str(path)]
         process = subprocess.Popen(
             command,
             env=child_environment(),
@@ -161,6 +163,7 @@ class ChatGPTImageRuntime:
         instruction = (
             "Use only the native image generation tool to create one actual PNG image from the user's visual request below. "
             "Do not use shell, web search, code, SVG or unrelated tools. Do not claim generation without a real image. "
+            "Use attached reference images to preserve the requested characters, appearance and visual style. "
             "Your final reply must contain only the generated image's absolute file path.\n<visual_request>\n"
             + prompt
             + "\n</visual_request>"

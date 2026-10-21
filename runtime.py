@@ -342,6 +342,10 @@ def builtin_tools(a, emit, llm, catalog):
             )(document_id=document_id)
 
         assigned.append(documents_read)
+    if llm.config.get("conversationArtifacts"):
+        from artifact_history import ArtifactReader
+
+        assigned.append(ArtifactReader(config=llm.config, actor=a, event_sink=emit))
     assigned.extend(harness.integration_tools(a, llm, emit, llm.config.get("run_id", "standalone")))
     assigned.extend(http_tools(a, catalog, emit, llm))
     return assigned
@@ -350,6 +354,23 @@ def builtin_tools(a, emit, llm, catalog):
 def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra):
     agent_class = agent_class or Agent
     agent_config = dict(config)
+    workflow = config.get("ebookWorkflow")
+    execution_seconds = a["behavior"]["maxExecutionSeconds"]
+    iterations = a["behavior"]["maxIterations"]
+    if workflow:
+        execution_seconds = max(execution_seconds, workflow["maxExecutionSeconds"])
+        iterations = max(iterations, workflow["maxIterations"])
+        emit(
+            "workflow_budget",
+            {
+                "agentId": a["id"],
+                "agent": a["name"],
+                "implementation": "ebook_workflow.plan → runtime.build_agent",
+                "where": "Local CrewAI request budget",
+                "explanation": "This illustrated book request needs several image generations and PDF assembly. The effective limits apply to this request only.",
+                **workflow,
+            },
+        )
     agent_config["provider"] = a["model"]["connection"]
     agent_config["model"] = a["model"]["name"]
     if not agent_config["model"]:
@@ -402,9 +423,9 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
         tools=assigned,
         allow_delegation=False,
         verbose=False,
-        max_iter=a["behavior"]["maxIterations"],
+        max_iter=iterations,
         max_retry_limit=a["behavior"]["maxRetries"],
-        max_execution_time=a["behavior"]["maxExecutionSeconds"],
+        max_execution_time=execution_seconds,
         max_rpm=a["behavior"]["maxRequestsPerMinute"] or None,
         respect_context_window=a["behavior"]["respectContextWindow"],
         **extra,
@@ -412,7 +433,48 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
     return agent, llm, agent_config, skill
 
 
+def pdf_result_guardrail(goal, config, emit):
+    if not re.search(r"\b(pdf|e-?book)\b", goal, re.I):
+        return None
+
+    def check(output):
+        documents = [
+            a
+            for a in config.get("conversationArtifacts", [])
+            if a.get("extension") == "pdf" and a.get("runId") == config.get("run_id", "standalone")
+        ]
+        workflow = config.get("ebookWorkflow")
+        if workflow:
+            documents = [
+                a
+                for a in documents
+                if a.get("document", {}).get("hasCover")
+                and a["document"].get("coverIllustrated")
+                and a["document"].get("chapterCount") == workflow["chapters"]
+                and a["document"].get("illustratedChapters") == workflow["chapters"]
+            ]
+        if documents:
+            return True, output
+        emit(
+            "output_validation_failed",
+            {
+                "implementation": "runtime.pdf_result_guardrail",
+                "where": "Local generated-file verification",
+                "explanation": "The requested PDF, or its required cover/illustrated chapters, has not been completed during this execution.",
+            },
+        )
+        return (
+            False,
+            "Create the requested real PDF with pdf_generator after its illustrations are ready. For an ebook, include an illustrated cover and every requested chapter with an image. Do not claim completion without a new PDF artifact. If tools/permissions are missing or a provider failed, explain the concrete failure.",
+        )
+
+    return check
+
+
 def image_result_guardrail(actor, goal, llm, emit):
+    # A PDF reusing an existing illustration must not force a new image generation.
+    if re.search(r"\bpdf\b", goal, re.I):
+        return None
     if "image-generator" not in actor["tools"] or not (
         re.search(
             r"\b(image|picture|photo|illustration|imagem|foto|ilustra[çc][aã]o)\b", goal, re.I
@@ -450,6 +512,10 @@ def execute(state, body, emit, config=None):
     from execution_context import conversation_prompt, resolve_target
 
     config = dict(config or auth.settings())
+    config.setdefault("conversationArtifacts", list(body.get("conversationArtifacts", [])))
+    from ebook_workflow import plan
+
+    config["ebookWorkflow"] = plan(body.get("goal", ""))
     team, members = resolve_target(state, body)
     if team.get("manager") and body.get("mode") != "one":
         from orchestration import execute_managed
@@ -515,7 +581,12 @@ def execute(state, body, emit, config=None):
             agent=agent,
             context=list(tasks),
             callback=callback,
-            guardrail=image_result_guardrail(a, goal, llm, emit),
+            guardrail=(
+                pdf_result_guardrail(goal, llm.config, emit)
+                if "pdf-generator" in a["tools"]
+                else None
+            )
+            or image_result_guardrail(a, goal, llm, emit),
             guardrail_max_retries=1,
         )
         agents.append(agent)

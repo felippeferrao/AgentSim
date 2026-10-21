@@ -26,3 +26,6 @@ The existing visual style, mascot and avatar assets remain. Activity cards pulse
 No external inference is triggered by selecting a target or opening a chat. Inference begins only when the user sends a message. Own account credentials remain independent of conversation history and are not exported into prompts or logs by this flow.
 
 Assistant messages persist real artifact metadata. Conversations from earlier versions hydrate missing attachments from their saved execution events. No output is fabricated from answer text.
+
+
+Generated attachments are durable conversation inputs, not display-only output. Reopened chats restore image/PDF/chart metadata; the next turn receives their catalog. Use in next message inserts a reference into the unsent composer. Agents can read prior PDFs/chart data, use images as native generation references, and embed originals in PDF pages. Each reuse records its actual input URLs and implementation. Illustrated ebook requests can create a cover plus one illustration per chapter, then compile a single PDF with chapters. The agent needs the relevant explicit tool grants.

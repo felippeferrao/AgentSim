@@ -65,6 +65,10 @@ class ConversationStore:
             }
         )
 
+    def artifacts(self, record):
+        # Files remain available even when old message text leaves the model window.
+        return [dict(a) for m in record["messages"] for a in m.get("artifacts", [])]
+
     def context(self, record):
         # Keep all messages stored; bound only the context sent on the next turn.
         messages = [m for m in record["messages"] if m.get("status") == "completed"]

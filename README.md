@@ -103,3 +103,10 @@ Execution history persists running/completed/failed/interrupted/rejected work an
 **Native ChatGPT image generation:** ChatGPT agents use the independently authenticated native Codex image runtime, without an API key. Tools → Image Generator → ChatGPT image connection handles its one-time sign-in. The direct subscription-sharing Responses route still rejects hosted image_generation; this native route is separate. Optional image API accounts remain available for deliberate API setups. Generated images, PDFs and Plotly outputs are attached to the assistant's chat message as well as the execution trace.
 
 [Harness extension contract, class map, Codex skill format, plugin schemas and examples](KnowledgeBase/HARNESS_INTEGRATIONS.md).
+
+
+## Continue from generated files
+
+Images, PDFs and charts stay in the saved conversation and can be reused after reopening it. Ask to revise a PDF, reuse a character in another image, or turn an image into an illustrated story. “Use in next message” on an attachment inserts its reference. Reuse events in the execution column show which real files were read or embedded.
+
+With **Image Generator** and **PDF Generator** granted, ask: “Construa uma história em 5 capítulos sobre um cachorro viajante. Ilustre cada capítulo e monte um PDF com capa para um e-book.” The agent creates chapter text, actual chapter/cover images and the final PDF, with per-step evidence and an extended budget for that request. Previous images can serve as visual references. Source files remain local and ignored by Git.

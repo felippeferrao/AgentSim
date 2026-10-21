@@ -131,3 +131,16 @@ A fresh-install regression check starts with a nonexistent database, creates it 
 Watch & run now starts with a 60/40 chat/execution split. A draggable, keyboard-accessible separator adjusts the chat share from 30% to 75%, persists the browser preference and resets to 60% on double-click. Mobile keeps stacked panels and hides the separator. Execution result images use 112 × 84 px contain-fit thumbnails; chat images retain their larger preview and original Open/Download links.
 
 Verified in the local app using an existing saved conversation: real image loaded at 112 × 84, pointer drag changed the split, ArrowLeft adjusted it, double-click restored 60%, and navigation away/back retained the setting. JavaScript syntax and whitespace checks pass.
+
+
+## Reusable conversation files and illustrated ebooks — 2026-10-21
+
+Generated images/documents are now actual follow-up inputs. The server restores the persisted artifact catalog independently of bounded message text and ignores client-injected catalogs. `artifact_history.ArtifactReader` reads PDF text/Plotly source; validated image references attach real PNGs to the native ChatGPT runtime and embed originals in PDF pages. Cross-conversation URLs, traversal and artifact/source symlinks are rejected. Existing explicit tool grants still apply. Chat attachments have Use in next message; actual input selections appear as artifact_reused events with file URLs, location and implementation.
+
+PDF Generator accepts illustrated pages or structured cover/chapters. Illustrated ebook requests receive a visible per-request plan and budget (5 chapters = cover + 5 chapter illustrations, 900 seconds, 20 agent iterations). The agent writes the chapters, calls image generation for actual scenes/cover, then creates the PDF. Saved profile defaults remain unchanged. Completion validation requires a PDF from this run; an ebook additionally requires its cover illustration, exact requested chapter count and an illustration for every chapter.
+
+Live provider verification: Billy reused the existing PNG from conversation history and produced a real two-page Portuguese illustrated PDF, run 49e97cf6-1173-4f9d-b62f-33d448decc1f. Both pages contain the original raster illustration; pypdf extraction and rendered page inspection verified captions/layout. The app was restarted and the reopened chat still showed the image, PDF and both reuse buttons. This live check intentionally reused one existing illustration on both pages.
+
+Controlled-provider verification separately covers five chapters plus cover with six real local PNG fixtures embedded in a six-page PDF, rejecting an incomplete chapter illustration count; HTTP/SSE conversation restoration and foreign catalog rejection; hierarchical manager file reading/delegated PDF generation; native CLI reference attachment; prior PDF extraction; generated-file/source symlink protection. The six-image book test does not represent six live image-generation requests.
+
+Final regression: 56 tests passed in 25.539 seconds; Ruff, JavaScript syntax and Git whitespace checks passed. After increasing the PDF reference limit for illustrated books to 120 MB (PNG references remain limited to 30 MB), the six targeted artifact/ebook tests passed again.

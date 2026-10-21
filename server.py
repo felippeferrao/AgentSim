@@ -761,9 +761,11 @@ class Handler(BaseHTTPRequestHandler):
                         else None,
                         "goal": body.get("goal", ""),
                         "conversationContext": context,
+                        "conversationArtifacts": conversations().artifacts(conversation),
                     }
                 else:
                     body.pop("conversationContext", None)
+                    body.pop("conversationArtifacts", None)
                 goal = body.get("goal", "")
                 if not isinstance(goal, str) or not goal.strip() or len(goal) > 8000:
                     raise ValueError("Write a message (1–8000 characters).")
@@ -787,6 +789,7 @@ class Handler(BaseHTTPRequestHandler):
                 run_config = dict(auth.settings())
                 job_id = str(uuid.uuid4())
                 run_config["run_id"] = job_id
+                run_config["conversationArtifacts"] = list(body.get("conversationArtifacts", []))
                 seed = {
                     "id": job_id,
                     "goal": body["goal"],
@@ -852,6 +855,7 @@ class Handler(BaseHTTPRequestHandler):
                                     "explanation": "The current message and prior completed conversation messages were supplied to the selected target.",
                                     "conversationId": conversation["id"],
                                     "priorMessages": len(body["conversationContext"]),
+                                    "availableArtifacts": body.get("conversationArtifacts", []),
                                     "contextTruncated": context_truncated,
                                     "mode": body["mode"],
                                     "targetId": conversation["targetId"],

@@ -110,3 +110,20 @@ Public events identify the native runtime class/location and actual start/comple
 Image-enabled ChatGPT agents use structured developer-defined function calls in `runtime.ResponsesLLM`. The adapter maps CrewAI function schemas/results to Responses `function_call` / `function_call_output`; CrewAI executes the granted tool. Explicit image creation requests require the image function before a final answer, and `runtime.image_result_guardrail` rejects text-only claims without an actual image artifact.
 
 Primary native-runtime references: [image generation](https://learn.chatgpt.com/docs/image-generation), [non-interactive runtime](https://learn.chatgpt.com/docs/non-interactive-mode), [independent sign-in](https://learn.chatgpt.com/docs/auth).
+
+
+## Persistent files and illustrated ebooks
+
+`conversation_store.ConversationStore.artifacts` restores generated file metadata from persisted chat messages, including older messages hydrated from execution events. The server supplies this trusted catalog on subsequent turns independently of the bounded text window; client-supplied artifact catalogs are discarded. Actual bytes stay in ignored `.local/artifacts/`. `artifact_history.resolve_reference` accepts only exact file URLs owned by this conversation, blocks traversal/symlinks and checks existence/size. New current-turn files join the same catalog, including across delegated agents.
+
+`read_generated_file` extracts PDF text and reads original Plotly source saved alongside new charts. `image_generator` accepts `reference_urls` and attaches those actual PNGs using the native CLI's documented `--image` option. Reference images are not supported by the optional API image provider. `pdf_generator` embeds original PNG bytes, either after plain text or through a structured request:
+
+```json
+{"cover":{"image_url":"/artifacts/RUN/FILE.png","subtitle":"An illustrated adventure"},"chapters":[{"title":"Chapter 1","text":"Complete chapter text...","image_url":"/artifacts/RUN/SCENE.png"}]}
+```
+
+For comics use `pages` instead of `chapters`, with `text` and `image_url` for each page. Images must already exist in the current conversation or current execution. Paths in these examples are illustrative placeholders, not real files.
+
+Example user request: “Construa uma história em 5 capítulos sobre um cachorro viajante. Ilustre cada capítulo e monte um PDF com capa para um e-book.” Grant the selected agent Image Generator and PDF Generator, or assign those integrations to the team's workers. `ebook_workflow.plan` recognizes a long illustrated book request, supplies an explicit chapter/cover plan and extends this request's execution/iteration budget (five chapters: six illustrations, 900 seconds, 20 iterations); saved profile defaults are unchanged. The model writes the story, generates actual scene/cover images, then assembles the PDF. Every actual tool call/result remains visible. `runtime.pdf_result_guardrail` requires a new PDF in the current run; ebook completion additionally requires a cover, cover image, the requested chapter count and an image for every chapter. Missing grants or failed image generation produce an incomplete/failed run, never a fake successful book.
+
+The user may select “Use in next message” on a saved chat attachment, or refer to it naturally. `artifact_reused` events identify selected source files and their purpose in the execution inspector.

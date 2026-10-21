@@ -9,7 +9,7 @@ from pydantic import Field
 
 import profiles
 from execution_context import conversation_prompt
-from runtime import build_agent
+from runtime import build_agent, pdf_result_guardrail
 from skill_runtime import SkillSelector, available_skills
 
 
@@ -80,7 +80,7 @@ class ObservedAgent(Agent):
         from crewai.utilities.i18n import I18N_DEFAULT
 
         coworkers = ", ".join(a.role for a in agents)
-        return [
+        tools = [
             TrackedDelegate(
                 **args, description=I18N_DEFAULT.tools("delegate_work").format(coworkers=coworkers)
             ),
@@ -96,6 +96,15 @@ class ObservedAgent(Agent):
                 manager=True,
             ),
         ]
+        if self.llm.config.get("conversationArtifacts"):
+            from artifact_history import ArtifactReader
+
+            tools.append(
+                ArtifactReader(
+                    config=self.llm.config, actor=self.profile_data, event_sink=self.event_sink
+                )
+            )
+        return tools
 
     def execute_task(self, task, context=None, tools=None):
         a = self.profile_data
@@ -218,6 +227,8 @@ def execute_managed(state, body, emit, config):
             + ", ".join(a["id"] + "=" + a["name"] for a in members)
         ),
         expected_output=manager_profile["expectedOutput"],
+        guardrail=pdf_result_guardrail(goal, config, emit),
+        guardrail_max_retries=1,
     )
     emit("run_started", {"orchestration": "managed", "managerId": manager_profile["id"]})
     Crew(

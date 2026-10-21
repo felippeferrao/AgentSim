@@ -483,3 +483,109 @@ class AppTests(unittest.TestCase):
         self.assertIsNone(record["activeRunId"])
         context, _ = server.conversations().context(record)
         self.assertTrue(all(m["role"] == "user" for m in context))
+
+    def test_prior_image_is_available_after_reopen_for_illustrated_pdf(self):
+        self._exercise_prior_image_pdf("one")
+
+    def test_manager_can_reuse_prior_image_and_delegate_pdf(self):
+        self._exercise_prior_image_pdf("team")
+
+    def _exercise_prior_image_pdf(self, mode):
+        import io
+
+        from PIL import Image
+        from pypdf import PdfReader
+
+        import harness
+
+        state = self.configured_state()
+        writer = next(a for a in state["agents"] if a["id"] == "writer")
+        writer["tools"] = ["pdf-generator"]
+        if mode == "team":
+            state["teams"][0]["manager"] = "researcher"
+        self.post("state", state)
+        self.post(
+            "settings",
+            {
+                "provider": "api",
+                "api_key": "fixture-only-key",
+                "base_url": f"http://127.0.0.1:{self.provider.server_port}/v1",
+            },
+        )
+        chat = self.post(
+            "conversations", {"mode": mode, "agent": "writer", "team": "research"}
+        ).json()
+        events = []
+        png = io.BytesIO()
+        Image.new("RGB", (240, 160), "#3a7ccc").save(png, format="PNG")
+        image = harness.ArtifactStore(
+            "previous-image", writer, lambda kind, data: events.append({"type": kind, "data": data})
+        ).write("Saved character", "png", png.getvalue())
+        store = server.conversations()
+        store.begin(chat, "Create a character", "previous-image")
+        store.finish(
+            {
+                "id": "previous-image",
+                "status": "completed",
+                "events": events,
+                "run": {"conversationId": chat["id"], "steps": [{"output": "Character ready"}]},
+            }
+        )
+        server.JOBS.clear()
+        self.scripts[writer["model"]["name"]] = [
+            "Thought: Use the saved illustration\nAction: pdf_generator\nAction Input: "
+            + json.dumps(
+                {
+                    "request": json.dumps(
+                        {
+                            "pages": [
+                                {"text": "A new illustrated adventure.", "image_url": image["url"]}
+                            ]
+                        }
+                    ),
+                    "title": "Follow-up comic",
+                }
+            ),
+            "Final Answer: The illustrated PDF is ready.",
+        ]
+        if mode == "team":
+            self.scripts["model-alpha"] = [
+                "Thought: Inspect the saved file\nAction: read_generated_file\nAction Input: "
+                + json.dumps({"url": image["url"]}),
+                "Thought: Delegate the document\nAction: Delegate work to coworker\nAction Input: "
+                + json.dumps(
+                    {
+                        "coworker": "2. Writer — Writer",
+                        "task": "Make the illustrated PDF with the saved image",
+                        "context": image["url"],
+                    }
+                ),
+                "Final Answer: The illustrated PDF is ready.",
+            ]
+        started = self.post(
+            "real-run",
+            {
+                "conversationId": chat["id"],
+                "goal": "Make a PDF comic using the previous image",
+                "conversationArtifacts": [{"url": "/artifacts/foreign/fake.png"}],
+            },
+        )
+        self.assertEqual(started.status_code, 202, started.text)
+        ident = started.json()["id"]
+        with httpx.stream("GET", self.base + "jobs/" + ident + "/events", timeout=30) as stream:
+            snapshots = [
+                json.loads(line[6:]) for line in stream.iter_lines() if line.startswith("data: ")
+            ]
+        job = snapshots[-1]
+        self.assertEqual(job["status"], "completed", job.get("error"))
+        public = next(e["data"] for e in job["events"] if e["type"] == "conversation_context")
+        self.assertEqual(public["availableArtifacts"][0]["url"], image["url"])
+        self.assertNotIn("foreign/fake", json.dumps(self.captured))
+        self.assertIn("artifact_reused", [e["type"] for e in job["events"]])
+        pdf = next(e["data"] for e in job["events"] if e["type"] == "artifact_created")
+        raw = httpx.get(self.base.removesuffix("api/") + pdf["url"].lstrip("/"))
+        page = PdfReader(io.BytesIO(raw.content)).pages[0]
+        self.assertEqual(len(page.images), 1)
+        self.assertIn("illustrated adventure", page.extract_text())
+        reopened = server.conversations().get(chat["id"])
+        self.assertEqual({a["extension"] for a in store.artifacts(reopened)}, {"pdf", "png"})

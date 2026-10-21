@@ -1688,3 +1688,6 @@ pre {
   display: block;
   color: #1873f4;
 }
+
+.use-artifact { display: block; margin-top: 10px; font-size: 12px; padding: 6px 9px; }
+.execution-column .use-artifact { display: none; }
