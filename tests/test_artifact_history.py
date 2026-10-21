@@ -97,7 +97,9 @@ class ArtifactHistoryTests(unittest.TestCase):
         file_reader = artifact_history.ArtifactReader(
             config={"conversationArtifacts": files}, actor=self.actor, event_sink=self.emit
         )
-        text = json.loads(file_reader._run(pdf["url"]))["content"]
+        read_result = json.loads(file_reader._run(pdf["url"]))
+        text = read_result["content"]
+        self.assertIn("Panel one", read_result["source"]["request"])
         self.assertIn("adventure", text)
         self.assertIn("happy ending", text)
 
@@ -177,7 +179,7 @@ class ArtifactHistoryTests(unittest.TestCase):
             "chapters": [
                 {
                     "title": f"Chapter {index}",
-                    "text": f"The complete adventure in chapter {index}.",
+                    "text": (f"The complete adventure in chapter {index}. " * 35),
                     "image_url": images[index]["url"],
                 }
                 for index in range(1, 6)
@@ -201,8 +203,32 @@ class ArtifactHistoryTests(unittest.TestCase):
         llm.config["ebookWorkflow"] = workflow
         check = pdf_result_guardrail(goal, llm.config, self.emit)
         self.assertTrue(check("Created the ebook")[0])
+        llm.config["conversationArtifacts"][-1]["document"]["uniqueIllustrations"] = 1
+        self.assertFalse(check("Repeated illustration")[0])
+        llm.config["conversationArtifacts"][-1]["document"]["uniqueIllustrations"] = 6
         llm.config["conversationArtifacts"][-1]["document"]["illustratedChapters"] = 4
         self.assertFalse(check("Incomplete ebook")[0])
+        repeated_spec = {
+            "cover": {"image_url": images[0]["url"]},
+            "chapters": [
+                {
+                    "title": f"Chapter {i}",
+                    "text": "A different chapter",
+                    "image_url": images[0]["url"],
+                }
+                for i in range(1, 6)
+            ],
+        }
+        repeated = json.loads(
+            tools["pdf-generator"]._run(json.dumps(repeated_spec), title="Repeated images")
+        )["artifacts"][0]
+        self.assertEqual(repeated["document"]["uniqueIllustrations"], 1)
+        repeated_check = pdf_result_guardrail(
+            goal,
+            {"run_id": "ebook", "ebookWorkflow": workflow, "conversationArtifacts": [repeated]},
+            self.emit,
+        )
+        self.assertFalse(repeated_check("Repeated image book")[0])
 
     def test_pdf_completion_requires_a_new_document(self):
         from runtime import pdf_result_guardrail
@@ -215,3 +241,17 @@ class ArtifactHistoryTests(unittest.TestCase):
         self.assertFalse(check("A promise")[0])
         config["conversationArtifacts"].append({"runId": "current", "extension": "pdf"})
         self.assertTrue(check("Created")[0])
+
+    def test_multiple_pdf_images_require_explicit_section_layout(self):
+        second = harness.ArtifactStore("another-scene", self.actor, self.emit).write(
+            "Another scene", "png", artifact_history.artifact_path(self.image).read_bytes()
+        )
+        llm = SimpleNamespace(
+            config={"provider": "api", "conversationArtifacts": [self.image, second]}
+        )
+        tool = harness.integration_tools(self.actor, llm, self.emit, "pdf")[0]
+        with self.assertRaisesRegex(ValueError, "structured JSON"):
+            tool._run(
+                "Create a PDF from the following instructions",
+                reference_urls=[self.image["url"], second["url"]],
+            )

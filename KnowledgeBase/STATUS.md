@@ -148,6 +148,20 @@ Final regression: 56 tests passed in 25.539 seconds; Ruff, JavaScript syntax and
 
 ## Application attribution and copying terms — 2026-10-21
 
-Added a persistent responsive footer with “Criado em 2026 por Felippe da Silva Ferrão - felippeferrao@wabix.net” on the left and “Powered By Wabix” on the opposite side. Reserved footer space in the page and desktop sidebar/chat heights. Verified the actual footer text and mailto link in the local browser; the current visual design is preserved.
+Added a persistent responsive footer with “Created in 2026 by Felippe da Silva Ferrão - felippeferrao@wabix.net” on the left and “Powered By Wabix” on the opposite side. Reserved footer space in the page and desktop sidebar/chat heights. Verified the actual footer text and mailto link in the local browser; the current visual design is preserved.
 
 Replaced this version's MIT notice with the project-specific AgentSim Attribution and Brand Preservation License 1.0. It permits use, copying, modifications and commercial redistribution while requiring the author's full name/contact, license, visible application credits and existing brand identification to remain. Modified distributions must identify changes and avoid implying endorsement. Third-party licenses and permissions for prior releases remain unaffected; generated user content is not subjected to an application-branding requirement. README identifies the license as custom rather than standard MIT.
+
+
+## Distinct live ebook illustrations — 2026-10-21
+
+The earlier two-page sample verified embedding one saved image; it did not demonstrate generating an illustration for each chapter. Executed the full request in Billy's real saved conversation: run f74829be-6032-4eee-b94a-ef102463f9d0 generated SIX new ChatGPT PNGs using the original character image only as a visual reference, then created a real illustrated PDF with cover and five complete Portuguese chapters. New scenes: cover journey, attic map, wooden bridge, lighthouse, letter station and return home. All six files have distinct hashes, and the PDF contains six distinct decoded raster illustrations. Original PDF was 32,167,316 bytes and 11 pages. The complete source run and its generated files remain in local conversation history.
+
+The live run exposed concurrent image tool calls being rejected by the native generation lock; the model recovered through sequential retries and completed. Fixed future requests by disabling parallel native function calls and queuing concurrent native requests with public queue events. Added an actual concurrency regression check. Ebook completion now requires N+1 distinct illustration contents (SHA-256), not just N+1 URLs; requests for new illustrations also require current-run illustration provenance. A repeated-image book is rejected in a real PDF-rendering regression check.
+
+Made chapter image height adapt to narrative length to reduce almost-empty continuation pages while keeping illustrations proportional. The complete ebook was submitted to Billy for a separate PDF-only layout revision, preserving all story text and six images.
+
+
+Final live layout verification: run e9ed18c8-7c00-4b6d-9d4f-0183aa76b469 recompiled the ORIGINAL structured PDF source into six pages (cover plus five chapters), preserving all 1,067 narrative words exactly after whitespace normalization. All six distinct raster images are embedded. Rendered and visually inspected chapter pages with their respective map/bridge/lighthouse/station/home scenes, with no almost-empty continuation pages. Source recovery is now exposed by read_generated_file; multi-image PDF calls without a structured page/chapter layout are rejected instead of printing instructions as document content. An earlier unsuccessful layout attempt remains in history as evidence.
+
+The final application footer and required license credit are in English: “Created in 2026 by Felippe da Silva Ferrão - felippeferrao@wabix.net” and “Powered By Wabix”. Reviewed static UI copy; other interface labels are already English. Verified the English footer and completed PDF in the user's browser after reload. Final regression: 58 tests passed in 25.551 seconds; Ruff, JavaScript syntax and Git whitespace checks passed. User-facing outputs remain outside the repository; generated files and database remain local and ignored.

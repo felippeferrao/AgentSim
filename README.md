@@ -128,3 +128,5 @@ which requires preservation of its copyright/permission notice but does not
 contain this project's visible-footer and brand-preservation conditions.
 Earlier releases retain their original license terms. User-generated content
 is not required by this license to carry the application's branding.
+
+Illustrated ebooks must have a distinct cover and a distinct illustration for every chapter. Output validation compares file contents, so repeating one image under different filenames cannot satisfy the request. Native scene-generation calls run sequentially or queue instead of failing when requested together.

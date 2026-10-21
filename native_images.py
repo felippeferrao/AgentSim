@@ -96,7 +96,18 @@ class ChatGPTImageRuntime:
                 "Connect the native ChatGPT image session in Tools → Image Generator. No API key is required."
             )
         if not _GENERATION_LOCK.acquire(blocking=False):
-            raise ValueError("A native image generation is already running. Wait for its result.")
+            emit(
+                "provider_tool_queued",
+                {
+                    "agentId": actor["id"],
+                    "agent": actor["name"],
+                    "implementation": "native_images.ChatGPTImageRuntime",
+                    "where": "Local native image generation queue",
+                    "explanation": "This scene is queued until the current illustration completes.",
+                },
+            )
+            if not _GENERATION_LOCK.acquire(timeout=3600):
+                raise ValueError("The image generation queue exceeded its time limit.")
         try:
             return ChatGPTImageRuntime._generate(prompt, llm, emit, actor, reference_paths)
         finally:

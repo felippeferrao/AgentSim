@@ -110,7 +110,7 @@ class PDFGenerator:
         ):
             raise ValueError("Illustrated PDF needs 1–40 page objects with text and image_url.")
 
-        def illustration(url):
+        def illustration(url, max_height=16 * cm):
             if url not in images:
                 raise ValueError(
                     "PDF illustration must reference a generated PNG from this conversation."
@@ -119,7 +119,7 @@ class PDFGenerator:
 
             with PillowImage.open(images[url]) as source:
                 width, height = source.size
-            scale = min(17 * cm / width, 16 * cm / height)
+            scale = min(17 * cm / width, max_height / height)
             story.extend(
                 [
                     Image(str(images[url]), width=width * scale, height=height * scale),
@@ -148,7 +148,15 @@ class PDFGenerator:
                     [Paragraph(escape(str(page["title"])), styles["Heading1"]), Spacer(1, 0.3 * cm)]
                 )
             if page.get("image_url"):
-                illustration(page["image_url"])
+                paragraphs = str(page.get("text", "")).split("\n\n")
+                text_height = sum(
+                    Paragraph(escape(text).replace("\n", "<br/>"), styles["BodyText"]).wrap(
+                        17 * cm, 100000
+                    )[1]
+                    + 0.3 * cm
+                    for text in paragraphs
+                )
+                illustration(page["image_url"], max(8 * cm, min(16 * cm, 21.5 * cm - text_height)))
             for paragraph in str(page.get("text", "")).split("\n\n"):
                 story.extend(
                     [
@@ -417,8 +425,33 @@ class IntegrationTool(BaseTool):
                     document = {}
                 if not isinstance(document, dict):
                     document = {}
+                if len(image_paths) > 1 and not isinstance(
+                    document.get("chapters", document.get("pages")), list
+                ):
+                    raise ValueError(
+                        "Multiple PDF illustrations require a structured JSON request with cover/chapters or pages and image_url per section. Supply the actual narrative text, not instructions to a PDF-writing model. Use read_generated_file source.request to rebuild an existing structured PDF."
+                    )
                 chapters = document.get("chapters", [])
+                import hashlib
+
+                used_urls = (
+                    [c.get("image_url") for c in chapters if isinstance(c, dict)]
+                    if isinstance(chapters, list)
+                    else []
+                )
+                if isinstance(document.get("cover"), dict):
+                    used_urls.append(document["cover"].get("image_url"))
+                used_urls = [url for url in used_urls if url in image_paths]
                 structure = {
+                    "uniqueIllustrations": len(
+                        {
+                            hashlib.sha256(image_paths[url].read_bytes()).hexdigest()
+                            for url in used_urls
+                        }
+                    ),
+                    "illustrationRunIds": [
+                        item["runId"] for item, _ in references if item["url"] in used_urls
+                    ],
                     "hasCover": isinstance(document.get("cover"), dict),
                     "coverIllustrated": bool((document.get("cover") or {}).get("image_url"))
                     if isinstance(document.get("cover"), dict)

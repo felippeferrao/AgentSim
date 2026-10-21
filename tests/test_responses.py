@@ -187,6 +187,7 @@ class ResponsesContract(unittest.TestCase):
             self.assertEqual(captured[1]["input"][-1]["call_id"], "call_fixture")
             self.assertIn("actual.png", captured[1]["input"][-1]["output"])
             self.assertNotIn("tool_choice", captured[1])
+            self.assertFalse(captured[0]["parallel_tool_calls"])
         finally:
             service.shutdown()
             service.server_close()

@@ -13,6 +13,9 @@ def plan(goal):
     return {
         "chapters": chapters,
         "illustrations": chapters + 1,
+        "requireNewIllustrations": bool(
+            re.search(r"\b(nov[ao]s?|new|different|diferentes?)\b", goal, re.I)
+        ),
         "maxExecutionSeconds": min(3600, (chapters + 1) * 120 + 180),
         "maxIterations": min(60, (chapters + 1) * 2 + 8),
     }
@@ -24,7 +27,7 @@ def instructions(goal):
         return ""
     return (
         f"\nIllustrated ebook workflow: write {workflow['chapters']} complete chapters about the user's subject. "
-        "Use image_generator to produce a cover and an actual illustration for EACH chapter, with distinct scene prompts. "
+        "Use image_generator to produce a cover and an actual DISTINCT illustration for EACH chapter, with distinct scene prompts. Repeating the same image for different chapters will fail output validation. "
         "Use previous generated images as reference_urls to preserve characters and style when relevant. "
         "If a suitable illustration already exists and the user asks to reuse it, reuse its real URL. "
         "Then call pdf_generator with JSON {cover:{image_url:URL,subtitle:TEXT},chapters:[{title:CHAPTER_TITLE,text:FULL_CHAPTER,image_url:URL}]}. "

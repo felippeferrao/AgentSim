@@ -3,6 +3,7 @@
 import io
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -169,3 +170,48 @@ class NativeImageTests(unittest.TestCase):
         self.assertIsNone(
             image_result_guardrail(actor, "What can you do?", llm, lambda *args: None)
         )
+
+    def test_simultaneous_scene_requests_are_queued_without_failure(self):
+        entered, release, queued = threading.Event(), threading.Event(), threading.Event()
+        results, failures = [], []
+        actor = {"id": "artist", "name": "Artist"}
+
+        def emit(kind, data):
+            if kind == "provider_tool_queued":
+                queued.set()
+
+        def generate(*args):
+            entered.set()
+            if not release.wait(3):
+                raise ValueError("Test release timed out")
+            return [b"scene"]
+
+        def request():
+            try:
+                results.append(
+                    native_images.ChatGPTImageRuntime.generate(
+                        "New scene", SimpleNamespace(), emit, actor
+                    )
+                )
+            except Exception as exc:
+                failures.append(exc)
+
+        with (
+            patch.object(
+                native_images.ChatGPTImageRuntime, "settings", return_value={"configured": True}
+            ),
+            patch.object(native_images.ChatGPTImageRuntime, "_generate", side_effect=generate),
+        ):
+            first = threading.Thread(target=request)
+            second = threading.Thread(target=request)
+            first.start()
+            self.assertTrue(entered.wait(2))
+            second.start()
+            try:
+                self.assertTrue(queued.wait(2))
+            finally:
+                release.set()
+                first.join(3)
+                second.join(3)
+        self.assertFalse(failures)
+        self.assertEqual(results, [[b"scene"], [b"scene"]])

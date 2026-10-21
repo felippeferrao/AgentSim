@@ -229,6 +229,8 @@ class ResponsesLLM(BaseLLM):
         if self.config.get("maxOutputTokens") is not None:
             options["max_output_tokens"] = self.config["maxOutputTokens"]
         if tools and self.supports_function_calling():
+            # Native image generation is serialized; do not request concurrent jobs.
+            options["parallel_tool_calls"] = False
             options["tools"] = [
                 {"type": "function", **t.get("function", t), "strict": False} for t in tools
             ]
@@ -452,6 +454,14 @@ def pdf_result_guardrail(goal, config, emit):
                 and a["document"].get("coverIllustrated")
                 and a["document"].get("chapterCount") == workflow["chapters"]
                 and a["document"].get("illustratedChapters") == workflow["chapters"]
+                and a["document"].get("uniqueIllustrations", 0) >= workflow["illustrations"]
+                and (
+                    not workflow.get("requireNewIllustrations")
+                    or all(
+                        r == config.get("run_id", "standalone")
+                        for r in a["document"].get("illustrationRunIds", [])
+                    )
+                )
             ]
         if documents:
             return True, output
@@ -465,7 +475,7 @@ def pdf_result_guardrail(goal, config, emit):
         )
         return (
             False,
-            "Create the requested real PDF with pdf_generator after its illustrations are ready. For an ebook, include an illustrated cover and every requested chapter with an image. Do not claim completion without a new PDF artifact. If tools/permissions are missing or a provider failed, explain the concrete failure.",
+            "Create the requested real PDF with pdf_generator after its illustrations are ready. For an ebook, include an illustrated cover and every requested chapter with a DISTINCT illustration. Do not reuse the same image for multiple chapters. Generate missing scenes with image_generator before assembling the PDF. Do not claim completion without a new PDF artifact. If tools/permissions are missing or a provider failed, explain the concrete failure.",
         )
 
     return check

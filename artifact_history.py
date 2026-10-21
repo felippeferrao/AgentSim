@@ -54,7 +54,7 @@ class ReadArgs(BaseModel):
 
 class ArtifactReader(BaseTool):
     name: str = "read_generated_file"
-    description: str = "Read a prior generated PDF's text or a chart's original Plotly data before creating a follow-up. Images can be used directly by image_generator or pdf_generator with reference_urls."
+    description: str = "Read a prior generated PDF's text or a chart's original Plotly data before creating a follow-up. When source is available, it contains original generator arguments: reuse source.request and source.reference_urls unchanged to recompile a PDF while preserving the exact narrative. Images can be used directly by image_generator or pdf_generator with reference_urls."
     args_schema: type[BaseModel] = ReadArgs
     config: dict = Field(exclude=True)
     actor: dict = Field(exclude=True)
@@ -65,6 +65,18 @@ class ArtifactReader(BaseTool):
 
         item, path = resolve_reference(self.config, url)
         reuse_event(self.event_sink, self.actor, [item], "read_generated_file")
+        source_data = None
+        source = path.with_suffix(".source.json")
+        if source.is_file():
+            if (
+                source.is_symlink()
+                or source.resolve().parent != path.resolve().parent
+                or source.stat().st_size > 1_000_000
+            ):
+                raise ValueError("Invalid stored generator source.")
+            raw = source.read_text()
+            if len(raw) <= 40000:
+                source_data = json.loads(raw)
         if item["extension"] == "pdf":
             text = "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
         elif path.with_suffix(".source.json").is_file():
@@ -85,6 +97,7 @@ class ArtifactReader(BaseTool):
                 "title": item["title"],
                 "url": url,
                 "content": text[:40000],
+                "source": source_data,
                 "truncated": len(text) > 40000,
             }
         )
