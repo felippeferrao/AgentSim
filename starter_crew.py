@@ -6,13 +6,24 @@ import sqlite3
 from pathlib import Path
 
 TEAM_ID = "comic-story-studio"
-SPECIALISTS = ("scriptwriter", "illustrator", "layout-designer", "quality-validator", "pdf-generator")
+SPECIALISTS = (
+    "scriptwriter",
+    "illustrator",
+    "layout-designer",
+    "quality-validator",
+    "pdf-generator",
+)
 DIRECTORY = Path(__file__).parent / "examples" / "comic-studio"
 
 
 def build(catalog):
+    from skill_files import parse_markdown
+
     state = json.loads((DIRECTORY / "configuration.json").read_text())
     state["catalog"] = copy.deepcopy(catalog) | state["catalog"]
+    skill = parse_markdown((Path(__file__).parent / "skills/minimax-pdf/SKILL.md").read_text())
+    if not any(s["id"] == skill["id"] for s in state["catalog"]["skills"]):
+        state["catalog"]["skills"].append(skill)
     return state
 
 

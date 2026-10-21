@@ -1,0 +1,11 @@
+# MiniMax PDF skill for AgentSim
+
+Source: [MiniMax-AI/skills, minimax-pdf](https://github.com/MiniMax-AI/skills/tree/60aaae52bb2af8162732751a4332f62a5fef518b/skills/minimax-pdf), pinned at `60aaae52bb2af8162732751a4332f62a5fef518b`. MIT license; copyright 2026 MiniMax. The original skill and design reference are retained under `upstream/`, with SHA-256 provenance in `provenance.json`. Attribution and the upstream license remain separate from AgentSim's own license.
+
+This is an explicitly adapted skill. The application imports `SKILL.md` in Codex format and assigns it to PDF Generator. Its required `pdf-generator` grant already exists; importing does not grant new permissions. The orchestrator can select the skill through `use_skill` for a team member, and the member can select its assigned skill directly. The selection reason appears in the execution history.
+
+The original package assumes shell access, Node/Playwright, supporting scripts and live Google Fonts. AgentSim exposes declarative tools instead. The adapted skill includes the complete upstream design reference inline, documents the supported tool schema, and uses the reviewed local `magazine_pdf.render` implementation when the PDF request has `"layout":"magazine"`. It uses existing ReportLab dependencies and offline Times/Helvetica families. It does not execute downloaded scripts or fetch external fonts, HTML resources or local files chosen by a model.
+
+Supported editorial features: typography-led cover, publication/issue labels, a restrained content-led accent, optional generated hero illustrations, standfirsts, captions, pull quotes, balanced two-column text and page folios. Existing standard PDFs remain supported. Image URLs must resolve to generated PNGs owned by the current conversation. Text is escaped, not interpreted as HTML or executable code. Original source requests are retained for follow-up recompilation.
+
+Validation means actual local checks and a rendered sample, not external certification. The original repository documents magazine/editorial modes and runnable examples; no independent quality certification was found. This integration does not claim InDesign-level arbitrary positioning, form-filling routes, PDF/X, CMYK/ICC preflight, trim/bleed or visual pixel inspection by the model. Print-production checks remain separate.

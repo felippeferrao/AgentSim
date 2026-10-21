@@ -26,7 +26,7 @@ CATALOG = [
     {
         "id": "pdf-generator",
         "name": "PDF Generator",
-        "description": "Create a real PDF with ReportLab. For illustrated stories/comics, request JSON {pages:[{text: caption, image_url: generated_PNG_URL}]}. For ebooks use {cover:{image_url:URL,subtitle:TEXT},chapters:[{title:TITLE,text:FULL_CHAPTER,image_url:URL}]}. Reuse prior images or generate scenes first; reference_urls embeds images with plain text too.",
+        "description": "Create a real PDF with ReportLab. For premium editorial/magazine layout, add layout: magazine to the JSON with optional publication, issue, design.accent, section standfirst, caption and pull_quote. For illustrated stories/comics, request JSON {pages:[{text: caption, image_url: generated_PNG_URL}]}. For ebooks use {cover:{image_url:URL,subtitle:TEXT},chapters:[{title:TITLE,text:FULL_CHAPTER,image_url:URL}]}. Reuse prior images or generate scenes first; reference_urls embeds images with plain text too.",
     },
     {
         "id": "image-generator",
@@ -96,6 +96,7 @@ class PDFGenerator:
         images = images or {}
         pages = None
         cover = None
+        spec = None
         if content.lstrip().startswith("{"):
             try:
                 spec = json.loads(content)
@@ -103,6 +104,10 @@ class PDFGenerator:
                 cover = spec.get("cover") if isinstance(spec, dict) else None
             except ValueError:
                 pass
+        if isinstance(spec, dict) and spec.get("layout") == "magazine":
+            from magazine_pdf import render
+
+            return render(title, spec, images)
         if pages is not None and (
             not isinstance(pages, list)
             or not 1 <= len(pages) <= 40
@@ -362,6 +367,13 @@ class IntegrationTool(BaseTool):
             and self.llm_adapter.config["provider"] == "chatgpt"
             and ChatGPTImageRuntime.settings()["configured"]
         )
+        if self.tool_id == "pdf-generator":
+            try:
+                requested_layout = json.loads(request)
+            except ValueError:
+                requested_layout = None
+            if isinstance(requested_layout, dict) and requested_layout.get("layout") == "magazine":
+                implementation = "magazine_pdf.render"
         if native_images:
             implementation = "native_images.ChatGPTImageRuntime"
             where = "Local Codex CLI → ChatGPT native image service"
@@ -443,6 +455,7 @@ class IntegrationTool(BaseTool):
                     used_urls.append(document["cover"].get("image_url"))
                 used_urls = [url for url in used_urls if url in image_paths]
                 structure = {
+                    "layout": document.get("layout", "standard"),
                     "uniqueIllustrations": len(
                         {
                             hashlib.sha256(image_paths[url].read_bytes()).hexdigest()

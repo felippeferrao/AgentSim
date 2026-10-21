@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/MiniMax-AI/skills",
+  "commit": "60aaae52bb2af8162732751a4332f62a5fef518b",
+  "path": "skills/minimax-pdf",
+  "license": "MIT",
+  "adaptation": "AgentSim declarative magazine PDF renderer; upstream scripts are not executed",
+  "files": {
+    "SKILL.md": "8b0497ddd27da142deb09b570a56f702f95e5f3f1e192cfe1ae24421416a408d",
+    "design.md": "870932013e86371697d88406273f8796830270a9171ac8065b13078acef6ffe2"
+  }
+}

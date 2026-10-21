@@ -32,3 +32,5 @@ PYTHONPATH=. .venv/bin/python starter_crew.py --build-seed
 ```
 
 This command rebuilds only the versioned starter fixture. It does not reset the user's operational database or delete their history.
+
+PDF Generator also has the bundled [MiniMax PDF magazine skill](../../skills/minimax-pdf/README.md), an MIT-licensed upstream adaptation. For editorial/magazine requests it selects the skill through `use_skill` and can render a typographic cover, hero images, balanced text columns, captions, pull quotes and folios using `layout: magazine`. The skill is optional per task and does not impose an agent sequence. Its assignment uses the existing PDF Generator tool grant. The full design reference is included in the registered Markdown; no shell access is needed.

@@ -166,6 +166,9 @@ def blank():
 
 def load_examples(state):
     example = initial()
+    for skill in example["catalog"]["skills"]:
+        if not any(s["id"] == skill["id"] for s in state["catalog"]["skills"]):
+            state["catalog"]["skills"].append(skill)
     existing = {a["id"] for a in state["agents"]}
     for agent in example["agents"]:
         if agent["id"] not in existing:
