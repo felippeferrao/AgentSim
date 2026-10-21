@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 TEAM_ID = "comic-story-studio"
-STAGES = ("oliver", "maya", "ethan", "sofia", "noah")
+STAGES = ("scriptwriter", "illustrator", "layout-designer", "quality-validator", "pdf-generator")
 DIRECTORY = Path(__file__).parent / "examples" / "comic-studio"
 
 
@@ -25,9 +25,9 @@ def stage_problem(results, include_publisher=True):
     positions = [latest[ident][0] for ident in required]
     if positions != sorted(positions):
         return "An earlier stage was revised. Repeat layout, validation and publication in dependency order."
-    review = latest["sofia"][1]["output"].strip()
+    review = latest["quality-validator"][1]["output"].strip()
     if not review or review.splitlines()[0].strip().upper() != "APPROVED":
-        return "Sofia has not approved the latest layout. Resolve her corrections and obtain a fresh APPROVED review."
+        return "Quality Validator has not approved the latest layout. Resolve her corrections and obtain a fresh APPROVED review."
     return None
 
 

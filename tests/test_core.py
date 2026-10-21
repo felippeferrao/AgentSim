@@ -20,7 +20,7 @@ class CoreTests(unittest.TestCase):
                 state = server.read()
                 self.assertTrue(database.is_file())
                 self.assertEqual(len(state["agents"]), 6)
-                self.assertEqual(state["teams"][0]["manager"], "clara")
+                self.assertEqual(state["teams"][0]["manager"], "orchestrator")
                 self.assertEqual(state["runs"], [])
                 self.assertEqual(server.execution_history(), [])
                 self.assertFalse(credentials.exists())

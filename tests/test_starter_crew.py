@@ -31,11 +31,11 @@ class StarterCrewTests(unittest.TestCase):
             state = json.loads(db.execute("SELECT data FROM state").fetchone()[0])
         self.assertEqual(state, server.initial())
         self.assertEqual(state["runs"], [])
-        self.assertEqual(state["teams"][0]["manager"], "clara")
-        self.assertEqual([a["id"] for a in state["agents"]], ["clara", *starter_crew.STAGES])
+        self.assertEqual(state["teams"][0]["manager"], "orchestrator")
+        self.assertEqual([a["id"] for a in state["agents"]], ["orchestrator", *starter_crew.STAGES])
         self.assertEqual(
             {a["id"]: a["tools"] for a in state["agents"] if a["tools"]},
-            {"maya": ["image-generator"], "noah": ["pdf-generator"]},
+            {"illustrator": ["image-generator"], "pdf-generator": ["pdf-generator"]},
         )
         self.assertNotIn("api_key", json.dumps(state))
         self.assertNotIn("access_token", json.dumps(state))
@@ -43,21 +43,21 @@ class StarterCrewTests(unittest.TestCase):
 
     def test_publication_requires_current_order_and_approval(self):
         results = [
-            {"agentId": ident, "output": "APPROVED" if ident == "sofia" else "Completed"}
+            {"agentId": ident, "output": "APPROVED" if ident == "quality-validator" else "Completed"}
             for ident in starter_crew.STAGES
         ]
         self.assertIsNone(starter_crew.stage_problem(results))
         results[3]["output"] = "CHANGES REQUIRED"
         self.assertIn("not approved", starter_crew.stage_problem(results))
         results[3]["output"] = "APPROVED"
-        results.append({"agentId": "oliver", "output": "Revised story"})
+        results.append({"agentId": "scriptwriter", "output": "Revised story"})
         self.assertIn("revised", starter_crew.stage_problem(results))
         events = []
         tool = harness.IntegrationTool(
             name="pdf_generator",
             description="Publish a validated comic PDF",
             tool_id="pdf-generator",
-            actor={"id": "noah", "name": "Noah Hayes"},
+            actor={"id": "pdf-generator", "name": "PDF Generator"},
             llm_adapter=SimpleNamespace(config={"provider": "api", "comicStages": []}),
             event_sink=lambda k, d: events.append(k),
             run_id="blocked",
@@ -112,7 +112,7 @@ class StarterCrewTests(unittest.TestCase):
                     ],
                 }
 
-            if ident == "clara":
+            if ident == "orchestrator":
                 if call <= 5:
                     actor = state["agents"][call]
                     return action(
@@ -129,9 +129,9 @@ class StarterCrewTests(unittest.TestCase):
                         },
                     )
                 return "Final Answer: The approved comic PDF and illustrations are ready."
-            if ident == "oliver":
+            if ident == "scriptwriter":
                 return "Final Answer: Complete one-chapter script: a young inventor helps a robot find home. Distinct cover and chapter scene prompts supplied."
-            if ident == "maya":
+            if ident == "illustrator":
                 if call <= 2:
                     return action(
                         "image_generator",
@@ -143,13 +143,13 @@ class StarterCrewTests(unittest.TestCase):
                         },
                     )
                 return "Final Answer: " + json.dumps(pngs)
-            if ident == "ethan":
+            if ident == "layout-designer":
                 return "Final Answer: " + json.dumps(layout())
-            if ident == "sofia":
+            if ident == "quality-validator":
                 if call <= 2:
                     return action("read_generated_file", {"url": pngs[call - 1]["url"]})
                 return "Final Answer: APPROVED\nChecked complete narrative, two distinct PNG fingerprints and the cover/chapter mapping. Metadata checks do not claim visual inspection."
-            if ident == "noah":
+            if ident == "pdf-generator":
                 if call == 1:
                     return action(
                         "pdf_generator",
@@ -201,6 +201,6 @@ class StarterCrewTests(unittest.TestCase):
             self.assertEqual(len(reader.pages), 2)
             self.assertTrue(all(len(page.images) == 1 for page in reader.pages))
             self.assertEqual(pdf["document"]["uniqueIllustrations"], 2)
-            self.assertEqual(steps[-1]["agentId"], "clara")
+            self.assertEqual(steps[-1]["agentId"], "orchestrator")
             self.assertEqual(image_count, 2)
             self.assertFalse(any(e["type"] == "workflow_validation_failed" for e in events))

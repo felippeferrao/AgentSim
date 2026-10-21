@@ -4,14 +4,14 @@ A clean, English-language crew for producing an illustrated comic from a theme a
 
 | Agent | Responsibility | Generation tools |
 | --- | --- | --- |
-| Clara Reed | Creative director and orchestrator; delegates every production stage | Delegation and quality gate |
-| Oliver Bennett | Complete chapter/panel script, dialogue and visual bible | None |
-| Maya Chen | New cover and distinct illustrated chapter pages with consistent characters | Image Generator |
-| Ethan Brooks | Full structured cover/chapter layout with real illustration URLs | None |
-| Sofia Martins | Narrative, continuity, layout and actual file/metadata quality checks | Read generated files |
-| Noah Hayes | Approved PDF generation and final page/image/text inspection | PDF Generator; read generated files |
+| Orchestrator | Creative director and orchestrator; delegates every production stage | Delegation and quality gate |
+| Scriptwriter | Complete chapter/panel script, dialogue and visual bible | None |
+| Illustrator | New cover and distinct illustrated chapter pages with consistent characters | Image Generator |
+| Layout Designer | Full structured cover/chapter layout with real illustration URLs | None |
+| Quality Validator | Narrative, continuity, layout and actual file/metadata quality checks | Read generated files |
+| PDF Generator | Approved PDF generation and final page/image/text inspection | PDF Generator; read generated files |
 
-Clara coordinates the dependency order **Oliver → Maya → Ethan → Sofia → Noah**, revisiting earlier stages when corrections are needed. Sofia must return `APPROVED` for the current material before Noah can publish. Completion requires all five specialists in order and a real illustrated PDF. Only Maya can generate images; only Noah can generate PDFs. Read-only generated-file inspection is available during the run, including for files created by another specialist.
+Orchestrator coordinates the dependency order **Scriptwriter → Illustrator → Layout Designer → Quality Validator → PDF Generator**, revisiting earlier stages when corrections are needed. Quality Validator must return `APPROVED` for the current material before PDF Generator can publish. Completion requires all five specialists in order and a real illustrated PDF. Only Illustrator can generate images; only PDF Generator can generate PDFs. Read-only generated-file inspection is available during the run, including for files created by another specialist.
 
 In **Watch & run**, select **Team → Comic Story Studio → Open chat** and send, for example:
 
