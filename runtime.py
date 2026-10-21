@@ -219,6 +219,7 @@ class ResponsesLLM(BaseLLM):
                     "where": "Provider: "
                     + __import__("urllib.parse", fromlist=["urlsplit"]).urlsplit(base).netloc,
                     "implementation": "runtime.ResponsesLLM",
+                    "availableTools": [t.get("function", t)["name"] for t in (tools or [])],
                 },
             )
         final = None
@@ -384,11 +385,9 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
         agentName=a["name"],
         imageTimeoutSeconds=max(15, a["behavior"]["maxExecutionSeconds"] - 15),
     )
-    agent_config["nativeTools"] = (
-        "image-generator" in a["tools"]
-        and a["model"]["connection"] == "chatgpt"
-        and harness.ChatGPTImageRuntime.settings()["configured"]
-    )
+    # Delegation, skills and file inspection need native tools just as images do.
+    # Tool-call support must not depend on the independent image runtime login.
+    agent_config["nativeTools"] = a["model"]["connection"] == "chatgpt"
     llm = ResponsesLLM(agent_config, emit)
     assigned = [] if manager else builtin_tools(a, emit, llm, state["catalog"]["mcp"])
     skill = ""

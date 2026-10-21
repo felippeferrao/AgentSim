@@ -231,12 +231,22 @@ def execute_managed(state, body, emit, config):
         if team["id"] == starter_crew.TEAM_ID
         else pdf_check
     )
+    routing_instructions = (
+        "You are the team's manager. Use delegate_work_to_coworker to execute every specialist stage: "
+        "Scriptwriter, Illustrator, Layout Designer, Quality Validator, then PDF Generator. "
+        "Pass the complete preceding results and real artifact URLs to the next specialist. "
+        "Revise rejected work and obtain fresh validation before publication. "
+        "Do not substitute your own answer for a specialist's execution. "
+        if team["id"] == starter_crew.TEAM_ID
+        else "You are the team's manager. Decide which agents to involve and in what order. "
+        "You may revisit an agent, skip irrelevant agents or answer directly when appropriate. "
+        "There is no fixed pipeline. "
+    )
     task = Task(
         description=(
-            f"Current user message: {goal}{conversation_prompt(body)}\nYou are the team's manager. Decide which agents to involve and in what order. "
+            f"Current user message: {goal}{conversation_prompt(body)}\n{routing_instructions}"
             "Delegate work or ask questions using the coworker tools, then assess their replies. "
-            "You may revisit an agent, skip irrelevant agents or answer directly when appropriate. "
-            "There is no fixed pipeline. Do not invent conversations or claim unperformed work. "
+            "Do not invent conversations or claim unperformed work. "
             "Give a final answer for the user's goal.\n"
             f"Available agents:\n{roster}\nManager instructions: {manager_profile['instructions']}\n"
             f"Available registered skills (select with use_skill when relevant):\n{available_skills(state['catalog']['skills'], manager_profile, True)}\n"
