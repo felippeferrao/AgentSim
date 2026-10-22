@@ -21,9 +21,10 @@ def build(catalog):
 
     state = json.loads((DIRECTORY / "configuration.json").read_text())
     state["catalog"] = copy.deepcopy(catalog) | state["catalog"]
-    skill = parse_markdown((Path(__file__).parent / "skills/minimax-pdf/SKILL.md").read_text())
-    if not any(s["id"] == skill["id"] for s in state["catalog"]["skills"]):
-        state["catalog"]["skills"].append(skill)
+    for name in ("minimax-pdf", "magazine-layout"):
+        skill = parse_markdown((Path(__file__).parent / "skills" / name / "SKILL.md").read_text())
+        if not any(s["id"] == skill["id"] for s in state["catalog"]["skills"]):
+            state["catalog"]["skills"].append(skill)
     return state
 
 

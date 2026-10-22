@@ -8,6 +8,8 @@ Build a team of AI agents and watch real work happen automatically. Plain Englis
 
 Use Python **3.12**. No frontend build is needed.
 
+For agent-designed editorial HTML/CSS PDFs, install the native Pango runtime first: `brew install pango` on macOS or `sudo apt install libpango-1.0-0 libpangoft2-1.0-0` on Debian/Ubuntu. The standard ReportLab PDF route remains available independently. WeasyPrint is pinned in the Python requirements; on macOS the isolated renderer loads Homebrew libraries automatically.
+
 ```sh
 git clone https://github.com/felippeferrao/AgentSim.git
 cd AgentSim

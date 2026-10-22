@@ -26,7 +26,7 @@ CATALOG = [
     {
         "id": "pdf-generator",
         "name": "PDF Generator",
-        "description": "Create a real PDF with ReportLab. For premium editorial/magazine layout, add layout: magazine to the JSON with optional publication, issue, design.accent, section standfirst, caption and pull_quote. For illustrated stories/comics, request JSON {pages:[{text: caption, image_url: generated_PNG_URL}]}. For ebooks use {cover:{image_url:URL,subtitle:TEXT},chapters:[{title:TITLE,text:FULL_CHAPTER,image_url:URL}]}. Reuse prior images or generate scenes first; reference_urls embeds images with plain text too.",
+        "description": "Create a real PDF. For agent-designed HTML/CSS composition use JSON {layout: editorial-html, html: SELF_CONTAINED_HTML, page_count: OPTIONAL_INTEGER} and list exact generated PNG URLs in reference_urls. This offline renderer embeds EditorialDisplay (DM Serif Display) and EditorialText (DM Sans); no scripts, CDNs, external resources or local paths. Standard PDFs use ReportLab. For premium editorial/magazine layout, add layout: magazine to the JSON with optional publication, issue, design.accent, section standfirst, caption and pull_quote. For illustrated stories/comics, request JSON {pages:[{text: caption, image_url: generated_PNG_URL}]}. For ebooks use {cover:{image_url:URL,subtitle:TEXT},chapters:[{title:TITLE,text:FULL_CHAPTER,image_url:URL}]}. Reuse prior images or generate scenes first; reference_urls embeds images with plain text too.",
     },
     {
         "id": "image-generator",
@@ -103,9 +103,15 @@ class PDFGenerator:
                 pages = spec.get("chapters", spec.get("pages")) if isinstance(spec, dict) else None
                 cover = spec.get("cover") if isinstance(spec, dict) else None
             except ValueError:
-                pass
+                raise ValueError(
+                    "Invalid PDF request JSON. Supply a complete JSON object with escaped quotes and all closing braces; repair the original request instead of changing its layout."
+                ) from None
         if isinstance(spec, dict) and spec.get("layout") == "magazine":
             from magazine_pdf import render
+
+            return render(title, spec, images)
+        if isinstance(spec, dict) and spec.get("layout") == "editorial-html":
+            from editorial_html import render
 
             return render(title, spec, images)
         if pages is not None and (
@@ -374,6 +380,11 @@ class IntegrationTool(BaseTool):
                 requested_layout = None
             if isinstance(requested_layout, dict) and requested_layout.get("layout") == "magazine":
                 implementation = "magazine_pdf.render"
+            if (
+                isinstance(requested_layout, dict)
+                and requested_layout.get("layout") == "editorial-html"
+            ):
+                implementation = "editorial_html.render"
         if native_images:
             implementation = "native_images.ChatGPTImageRuntime"
             where = "Local Codex CLI → ChatGPT native image service"
@@ -412,7 +423,9 @@ class IntegrationTool(BaseTool):
                             if isinstance(p, dict) and p.get("image_url")
                         )
                 except ValueError:
-                    pass
+                    raise ValueError(
+                        "Invalid PDF request JSON. Supply a complete JSON object with escaped quotes and all closing braces; repair the original request instead of changing its layout."
+                    ) from None
             urls = list(dict.fromkeys(urls))
             if len(urls) > 40:
                 raise ValueError("Use at most 40 generated illustrations per document.")
@@ -437,8 +450,10 @@ class IntegrationTool(BaseTool):
                     document = {}
                 if not isinstance(document, dict):
                     document = {}
-                if len(image_paths) > 1 and not isinstance(
-                    document.get("chapters", document.get("pages")), list
+                if (
+                    document.get("layout") != "editorial-html"
+                    and len(image_paths) > 1
+                    and not isinstance(document.get("chapters", document.get("pages")), list)
                 ):
                     raise ValueError(
                         "Multiple PDF illustrations require a structured JSON request with cover/chapters or pages and image_url per section. Supply the actual narrative text, not instructions to a PDF-writing model. Use read_generated_file source.request to rebuild an existing structured PDF."

@@ -133,3 +133,9 @@ Illustrated ebook validation also counts distinct illustration file contents by 
 
 
 PDF-only revision uses original generator arguments exposed as `read_generated_file.source` when retained. Reusing `source.request` avoids losing or rewriting narrative content during extraction. Multi-image PDF requests must declare a `pages` or `cover`/`chapters` JSON layout; natural-language instructions cannot substitute for actual document content. Chapter illustration height adapts to narrative length to reduce nearly empty continuation pages.
+
+## Agent-authored editorial composition
+
+`harness.PDFGenerator.render` accepts `{ "layout": "editorial-html", "html": "complete HTML with inline CSS", "page_count": 2 }`. The agent chooses and writes the composition; this route does not inject a cover/article template. Supply every actual conversation-owned PNG URL in `reference_urls`, including CSS background images. `editorial_html.render` uses an isolated, time-bounded WeasyPrint process and embeds bundled OFL DM Serif Display/DM Sans fonts. Native Pango is required (see README). The standard ReportLab and older magazine routes remain supported.
+
+The resource fetcher permits only artifact paths previously resolved by the harness and the two bundled fonts. External/local-file URLs, scripts, embeds, remote stylesheets and CSS imports are rejected. HTML is bounded to 100 KB; rendering has a 45-second timeout and 35-second CPU limit on POSIX, with a 40-page/120 MB output cap. This is an offline single-user renderer, not an OS security sandbox. An explicit `page_count` is checked against actual PDF pages and rejected if different, so the agent can repair its composition. Generated source is retained for revisions; readback provides text/image/page evidence, not a visual-review claim.

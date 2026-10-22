@@ -18,7 +18,8 @@ class MagazineSkillTests(unittest.TestCase):
     def test_bundled_skill_assigned_and_loaded_with_public_selection(self):
         state = server.initial()
         actor = next(a for a in state["agents"] if a["id"] == "pdf-generator")
-        self.assertEqual(actor["skills"], ["minimax-pdf"])
+        self.assertEqual(actor["skills"], ["magazine-layout"])
+        actor["skills"].append("minimax-pdf")
         skill = next(s for s in state["catalog"]["skills"] if s["id"] == "minimax-pdf")
         self.assertEqual(skill["format"], "codex-skill")
         self.assertEqual(skill["requires"], ["pdf-generator"])

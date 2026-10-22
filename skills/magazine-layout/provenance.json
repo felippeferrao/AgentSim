@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/isjiamu/jiamu-skills",
+  "commit": "3c213712723a099ffff136011b51f9a1ca5b708f",
+  "path": "magazine-layout",
+  "license": "MIT",
+  "fontRepository": "https://github.com/google/fonts",
+  "fontCommit": "45e3d5269e4a17d823f6d84470bc084dc5ae46f6",
+  "fontsLicense": "OFL-1.1",
+  "upstreamHashes": {
+    "styles.md": "18cd297ca99b3f198eb670a7e3f81042c116d78bd7fb9282d881704b3a46f288",
+    "SKILL.md": "767d4da887b94cf9aa2f61805e073f99d308c167ff21730a34d92723b2ffb40b"
+  }
+}
