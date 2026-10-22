@@ -28,7 +28,7 @@
       "behavior": {
         "maxIterations": 20,
         "maxRetries": 1,
-        "maxExecutionSeconds": 600,
+        "maxExecutionSeconds": 1200,
         "maxRequestsPerMinute": 0,
         "respectContextWindow": true
       },

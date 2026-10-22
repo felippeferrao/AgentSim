@@ -120,7 +120,7 @@ class ProfileTests(unittest.TestCase):
         first["behavior"].update(
             maxIterations=4,
             maxRetries=1,
-            maxExecutionSeconds=90,
+            maxExecutionSeconds=1200,
             maxRequestsPerMinute=20,
             respectContextWindow=False,
         )
@@ -164,7 +164,7 @@ class ProfileTests(unittest.TestCase):
         )
         self.assertEqual(agents.call_args_list[0].kwargs["max_iter"], 4)
         self.assertEqual(agents.call_args_list[0].kwargs["max_retry_limit"], 1)
-        self.assertEqual(agents.call_args_list[0].kwargs["max_execution_time"], 90)
+        self.assertEqual(agents.call_args_list[0].kwargs["max_execution_time"], 1200)
         self.assertEqual(agents.call_args_list[0].kwargs["max_rpm"], 20)
         self.assertFalse(agents.call_args_list[0].kwargs["respect_context_window"])
         self.assertEqual(tasks.call_args_list[0].kwargs["expected_output"], "A packing list.")

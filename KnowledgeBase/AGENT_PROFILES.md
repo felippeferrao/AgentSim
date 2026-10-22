@@ -22,7 +22,7 @@ The editor has six separate steps: **1 Identity** (character, name, role), **2 J
 | model.contextWindow | Context budget returned to CrewAI; this does not enlarge the real model's capability |
 | behavior.maxIterations | CrewAI `max_iter` |
 | behavior.maxRetries | CrewAI `max_retry_limit` |
-| behavior.maxExecutionSeconds | CrewAI `max_execution_time` |
+| behavior.maxExecutionSeconds | CrewAI `max_execution_time`; configurable from 10 to 3600 seconds, including longer manager tasks with delegated image generation |
 | behavior.maxRequestsPerMinute | CrewAI `max_rpm`; 0 means no additional CrewAI limiter |
 | behavior.respectContextWindow | CrewAI `respect_context_window` |
 

@@ -100,7 +100,7 @@ def validate(agent):
     bounds = {
         "maxIterations": (1, 20),
         "maxRetries": (0, 2),
-        "maxExecutionSeconds": (10, 600),
+        "maxExecutionSeconds": (10, 3600),
         "maxRequestsPerMinute": (0, 120),
     }
     if (

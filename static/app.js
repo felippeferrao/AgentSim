@@ -607,7 +607,7 @@ function agentEditor(id) {
         "maxExecutionSeconds",
         "Time limit (seconds)",
         10,
-        600,
+        3600,
         "CrewAI execution limit for this agent.",
       ],
       [
