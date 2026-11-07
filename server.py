@@ -270,7 +270,7 @@ def validate(s):
                 if not {"id", "name", "job", "tools", "skills", "mcp"} <= set(a):
                     raise ValueError("Missing agent fields.")
                 a.update(profiles.validate(a))
-            elif set(a) - {"example", "manager"} != {"id", "name", "agents"}:
+            elif set(a) - {"example", "manager", "skillsEnabled"} != {"id", "name", "agents"}:
                 raise ValueError("Invalid team fields.")
         if len(set(ids)) != len(ids):
             raise ValueError("Duplicate ids.")
@@ -328,6 +328,8 @@ def validate(s):
             if not isinstance(a[k], list) or any(v not in allowed for v in a[k]):
                 raise ValueError("Unknown assignment.")
     for t in s["teams"]:
+        if "skillsEnabled" in t and type(t["skillsEnabled"]) is not bool:
+            raise ValueError("Team skillsEnabled must be true or false.")
         if not isinstance(t["agents"], list) or any(
             x not in [a["id"] for a in s["agents"]] for x in t["agents"]
         ):

@@ -104,3 +104,24 @@ class OrchestrationTests(unittest.TestCase):
         )
         self.assertEqual(events[-1]["data"]["result"]["output"], "Manager's combined plan.")
         self.assertNotIn("PRIVATE TEST REASONING", str(events))
+
+    def test_disabled_team_skills_are_filtered_without_mutating_shared_registry(self):
+        state = self.state()
+        state['teams'][0]['skillsEnabled'] = False
+        for agent in state['agents']:
+            agent['skills'] = ['clear-writing']
+        original = copy.deepcopy(state)
+        events = []
+        def managed(scoped, body, emit, config):
+            self.assertEqual(scoped['catalog']['skills'], [])
+            self.assertTrue(all(a['skills'] == [] for a in scoped['agents']))
+            return []
+        with patch('orchestration.execute_managed', side_effect=managed) as run:
+            execute(state, {'team':'research','goal':'Write an onboarding guide'}, lambda k,d: events.append((k,d)), config={})
+        self.assertEqual(state, original)
+        run.assert_called_once()
+        self.assertEqual(events[0][0], 'skill_policy')
+        self.assertFalse(events[0][1]['enabled'])
+        for invalid in (None, 'false', 0):
+            state['teams'][0]['skillsEnabled'] = invalid
+            with self.assertRaises(ValueError): server.validate(state)

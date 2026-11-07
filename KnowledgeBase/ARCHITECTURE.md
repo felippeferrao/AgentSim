@@ -39,3 +39,7 @@ Named-login refinement: the protected configuration accepts `users: [{username, 
 ## Archify interactive system map
 
 The Architecture menu now embeds the real standalone Archify output at `/architecture.html?theme=light` and offers a full-window link. The typed source is `architecture/agentsim.architecture.json`, with repository-pinned component evidence. The deployment serves the generated HTML from the same authenticated application; no repository or credentials are sent to a hosted diagram service. Archify handles search, zoom, component source details, dependency reach, route tracing and export. The team configuration below remains dynamic; the source-backed system map is an architectural snapshot, while Watch & run remains the live execution view. [Generation and third-party licensing](../architecture/README.md).
+
+## Execution-scoped team skill policy
+
+Teams may set `skillsEnabled` (boolean, default enabled for backward compatibility). With false, `runtime.execute` clones only the execution state, clears its skill catalog and assignments, and records a public `skill_policy` event. The manager receives no skill-selection tool when the effective catalog is empty. The persistent registry and other teams are unchanged. The Teams editor exposes this control in English; tool/MCP permissions remain independent. This supports honest no-skill comparisons without globally removing skills or changing manager routing.

@@ -527,6 +527,20 @@ def execute(state, body, emit, config=None):
 
     config["ebookWorkflow"] = plan(body.get("goal", ""))
     team, members = resolve_target(state, body)
+    if "skillsEnabled" in team:
+        emit("skill_policy", {
+            "enabled": team["skillsEnabled"], "team": team["name"],
+            "implementation": "runtime.execute",
+            "where": "Execution-scoped team permissions",
+            "explanation": "Skills are available for explicit selection." if team["skillsEnabled"] else "Skills are blocked for every member, including manager discovery. Saved assignments and the shared registry are unchanged.",
+        })
+    if team.get("skillsEnabled") is False:
+        import copy
+        state = copy.deepcopy(state)
+        state["catalog"]["skills"] = []
+        for profile in state["agents"]:
+            profile["skills"] = []
+        team, members = resolve_target(state, body)
     if team.get("manager") and body.get("mode") != "one":
         from orchestration import execute_managed
 

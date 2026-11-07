@@ -87,15 +87,16 @@ class ObservedAgent(Agent):
             TrackedQuestion(
                 **args, description=I18N_DEFAULT.tools("ask_question").format(coworkers=coworkers)
             ),
-            SkillSelector(
+        ]
+        if self.skill_catalog:
+            tools.append(SkillSelector(
                 actor=self.profile_data,
                 catalog=self.skill_catalog,
                 members=self.team_profiles,
                 selections=self.skill_selections,
                 event_sink=self.event_sink,
                 manager=True,
-            ),
-        ]
+            ))
         from artifact_history import ArtifactReader
 
         tools.append(

@@ -839,7 +839,7 @@ function editor(key, id) {
   if (key === "agents") return agentEditor(id);
   const team = state.teams.find((t) => t.id === id) || { name: "", agents: [] };
   modal(
-    `<h2>${id ? "Edit" : "Create"} team</h2><form id="teamForm"><label class="field">Name<input name="name" maxlength="80" value="${esc(team.name)}" required></label><label class="field">Team manager<select name="manager" id="teamManager" aria-label="Team manager" required><option value="">Choose the agent who coordinates this team</option>${state.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === team.manager ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select><small>The manager decides which agents to call and in what order. It coordinates through delegation; the other agents use their own tools and MCP permissions.</small></label><p>Select the manager and at least one other agent. The order below is not an execution sequence.</p>${checks("agents", team.agents, state.agents)}${team.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<button class="primary">Save team</button></form>`,
+    `<h2>${id ? "Edit" : "Create"} team</h2><form id="teamForm"><label class="field">Name<input name="name" maxlength="80" value="${esc(team.name)}" required></label><label class="field">Team manager<select name="manager" id="teamManager" aria-label="Team manager" required><option value="">Choose the agent who coordinates this team</option>${state.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === team.manager ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select><small>The manager decides which agents to call and in what order. It coordinates through delegation; the other agents use their own tools and MCP permissions.</small></label><label class="check"><input type="checkbox" name="skillsEnabled" ${team.skillsEnabled !== false ? "checked" : ""}>Allow skills in this team</label><p class="muted">When off, skills are blocked for all members, including automatic discovery by the manager. Tool permissions are unchanged.</p><p>Select the manager and at least one other agent. The order below is not an execution sequence.</p>${checks("agents", team.agents, state.agents)}${team.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<button class="primary">Save team</button></form>`,
   );
   $("#teamManager").onchange = (e) => {
     const checkbox = [
@@ -856,6 +856,7 @@ function editor(key, id) {
         name: f.get("name"),
         agents: f.getAll("agents"),
         manager: f.get("manager"),
+        skillsEnabled: f.has("skillsEnabled"),
       };
       if (team.example) result.example = !f.has("makeOwn");
       const next = structuredClone(state);

@@ -20,3 +20,4 @@ This folder is the source of project requirements and delivery truth. It is not 
 
 - [Protected Docker deployment](../deploy/README.md)
 - [Interactive architecture generated with Archify](../architecture/README.md)
+- [Insurance onboarding crew comparison](../examples/insurance-onboarding/README.md)
