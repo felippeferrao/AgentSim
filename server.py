@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import auth
+import site_access
 import external_mcp
 import harness
 import plugin_import
@@ -395,13 +396,50 @@ class Handler(BaseHTTPRequestHandler):
         raw = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
 
+    def valid_host(self):
+        public = os.environ.get("AGENTSIM_PUBLIC_URL", "").rstrip("/")
+        allowed = {"127.0.0.1", "localhost"}
+        if public:
+            allowed.add(urlparse(public).hostname)
+        return self.headers.get("Host", "").split(":")[0] in allowed
+
+    def require_login(self):
+        if not site_access.config() or site_access.authenticated(self.headers.get("Cookie")):
+            return False
+        if self.path.startswith(("/api/", "/artifacts/")):
+            self.reply({"error": "Sign in to your workspace."}, 401)
+        else:
+            self.send_response(303)
+            self.send_header("Location", "/login")
+            self.end_headers()
+        return True
+
+    def end_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        super().end_headers()
+
     def do_GET(self):
-        if self.headers.get("Host", "").split(":")[0] not in ["127.0.0.1", "localhost"]:
-            return self.reply({"error": "Use the loopback address"}, 403)
+        if not self.valid_host():
+            return self.reply({"error": "Unrecognized host"}, 403)
+        if urlparse(self.path).path == "/login":
+            raw = site_access.LOGIN_HTML.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(raw)
+            return
+        if self.require_login():
+            return
+        if self.path == "/api/site/session":
+            return self.reply({"loginRequired": bool(site_access.config())})
         url = urlparse(self.path)
         if url.path == "/auth/callback":
             try:
@@ -547,12 +585,14 @@ class Handler(BaseHTTPRequestHandler):
         pass  # Callback query strings contain authorization codes. Never log them.
 
     def do_POST(self):
-        if self.headers.get("Host", "").split(":")[0] not in ["127.0.0.1", "localhost"]:
-            return self.reply({"error": "Use the loopback address"}, 403)
+        if not self.valid_host():
+            return self.reply({"error": "Unrecognized host"}, 403)
+        if self.path != "/api/site/login" and self.require_login():
+            return
         try:
-            if self.headers.get("Origin") and self.headers[
-                "Origin"
-            ] != "http://" + self.headers.get("Host", ""):
+            public = os.environ.get("AGENTSIM_PUBLIC_URL", "").rstrip("/")
+            expected = public or "http://" + self.headers.get("Host", "")
+            if (public and self.headers.get("Origin") != expected) or (self.headers.get("Origin") and self.headers["Origin"] != expected):
                 return self.reply({"error": "Cross-origin writes blocked"}, 403)
             size = int(self.headers.get("Content-Length", "0"))
             if size > (15_000_000 if self.path.startswith("/api/plugins/") else 8_000_000):
@@ -560,6 +600,32 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(size))
             if not isinstance(body, dict):
                 raise ValueError("Expected a JSON object.")
+            if self.path == "/api/site/login":
+                token = site_access.login(body.get("username"), body.get("password"))
+                if not token:
+                    time.sleep(1)
+                    return self.reply({"error": "Invalid username or password."}, 401)
+                self.send_response(200)
+                secure = "; Secure" if public else ""
+                self.send_header("Set-Cookie", f"agentsim_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={site_access.TTL}{secure}")
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(b'{"ok":true}')
+                return
+            if self.path == "/api/site/logout":
+                site_access.logout(self.headers.get("Cookie"))
+                self.send_response(200)
+                self.send_header("Set-Cookie", "agentsim_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0" + ("; Secure" if public else ""))
+                self.end_headers()
+                self.wfile.write(b'{"ok":true}')
+                return
+            if self.path == "/api/openai/disconnect":
+                with LOCK:
+                    if any(j.get("status") == "running" for j in JOBS.values()):
+                        raise ValueError("Wait for the current execution to finish before disconnecting OpenAI.")
+                    auth.disconnect()
+                return self.reply({"ok": True})
             s = read()
             if self.path == "/api/conversations":
                 return self.reply(conversations().create(s, body), 201)
@@ -640,6 +706,12 @@ class Handler(BaseHTTPRequestHandler):
                     s = load_examples(read())
                     save(s)
                 return self.reply(read())
+            if self.path == "/api/oauth/complete":
+                callback = urlparse(body.get("url", ""))
+                if callback.scheme != "http" or callback.netloc != f"127.0.0.1:{self.server.server_port}" or callback.path != "/auth/callback":
+                    raise ValueError("Paste the exact localhost callback URL from the OpenAI sign-in tab.")
+                auth.callback({k: v[0] for k, v in parse_qs(callback.query).items()})
+                return self.reply({"ok": True})
             if self.path == "/api/oauth/start":
                 return self.reply({"url": auth.start(self.server.server_port)})
             if self.path == "/api/oauth/logout":
@@ -998,7 +1070,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    site_access.config()  # Fail closed before listening if public login is missing.
     recover_jobs()
     port = int(os.environ.get("PORT", "8080"))
-    print(f"WABIX AgentSim: http://127.0.0.1:{port} (real AI workspace)", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    bind = os.environ.get("AGENTSIM_BIND", "127.0.0.1")
+    print(f"WABIX AgentSim: listening on {bind}:{port} (real AI workspace)", flush=True)
+    ThreadingHTTPServer((bind, port), Handler).serve_forever()

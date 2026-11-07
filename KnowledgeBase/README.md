@@ -17,3 +17,6 @@ This folder is the source of project requirements and delivery truth. It is not 
 - [Chat execution, target selection and conversation context](CHAT_EXECUTION.md)
 
 - [Comic Story Studio starter crew and clean database](../examples/comic-studio/README.md)
+
+- [Protected Docker deployment](../deploy/README.md)
+- [Interactive architecture generated with Archify](../architecture/README.md)

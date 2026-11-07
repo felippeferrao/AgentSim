@@ -24,7 +24,7 @@ python3.12 -m venv .venv
 .venv/bin/python server.py
 ```
 
-Open **http://127.0.0.1:8080**. Use `PORT=8081 ./start.sh` to change ports. The app is single-user and binds only to loopback. On a simple remote server, use an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 your-server`), then open that exact loopback address locally so the OAuth callback can follow the tunnel. No public multi-user deployment is included.
+Open **http://127.0.0.1:8080**. Use `PORT=8081 ./start.sh` to change ports. Local mode is single-user and binds only to loopback. On a simple remote server, use an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 your-server`), then open that exact loopback address locally so the OAuth callback can follow the tunnel. For the protected owner-only HTTPS/Docker installation, see the deployment section below; separate-user tenancy is not included.
 
 ## Your workspace
 
@@ -65,7 +65,7 @@ AgentSim uses its own dynamic open-source client registration, host identity, PK
 
 Open Alternative: your API connection and enter your own key locally, never in chat. Use an HTTPS base URL supporting streaming Responses, or HTTP loopback for a local service. Save and check, then choose a model for each agent from the automatically loaded catalog. Global settings hold connection credentials; they do not override agent models. Chat Completions-only providers are not supported. Optional temperature/output settings are sent only when set, and unsupported settings produce an error without silent fallback.
 
-Credentials stay in ignored `.local/` files, written atomically with `0600` permissions. They are excluded from exports and public settings responses. This is OS file protection, not encryption at rest. Sign out clears local OAuth credentials; revoke remote access in ChatGPT settings if required.
+Credentials stay in ignored `.local/` files, written atomically with `0600` permissions. They are excluded from exports and public settings responses. This is OS file protection, not encryption at rest. Disconnect OpenAI clears this application’s text and image credentials; application Sign out closes only the workspace session. Revoke provider-side access in ChatGPT settings if required.
 
 ### Local data and GitHub distribution
 
@@ -132,3 +132,9 @@ Earlier releases retain their original license terms. User-generated content
 is not required by this license to carry the application's branding.
 
 Illustrated ebooks must have a distinct cover and a distinct illustration for every chapter. Output validation compares file contents, so repeating one image under different filenames cannot satisfy the request. Native scene-generation calls run sequentially or queue instead of failing when requested together.
+
+## Protected server deployment
+
+For a protected Docker/HTTPS installation on your own host, see [deployment instructions](deploy/README.md). Local execution remains loopback-only by default. Public deployments require the server-only login configuration; credentials and operational data are never included in the image or Git.
+
+Architecture includes an interactive, source-backed [Archify system map](architecture/README.md), hosted inside the authenticated application. Explore component source evidence, search, zoom, trace routes, and open the diagram in a full window.

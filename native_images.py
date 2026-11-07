@@ -47,13 +47,13 @@ class ChatGPTImageRuntime:
         with _LOGIN_LOCK:
             if _LOGIN.get("process") and _LOGIN["process"].poll() is None:
                 if _LOGIN.get("url"):
-                    return {"url": _LOGIN["url"]}
+                    return {"url": _LOGIN["url"], "code": _LOGIN.get("code", "")}
                 raise ValueError("Image sign-in is already starting. Try again shortly.")
             executable = shutil.which("codex")
             if not executable:
                 raise ValueError("Install the official Codex CLI to use native ChatGPT images.")
             process = subprocess.Popen(
-                [executable, "-c", 'cli_auth_credentials_store="file"', "login"],
+                [executable, "-c", 'cli_auth_credentials_store="file"', "login"] + (["--device-auth"] if os.environ.get("AGENTSIM_PUBLIC_URL") else []),
                 env=child_environment(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -66,11 +66,17 @@ class ChatGPTImageRuntime:
 
             def read_login():
                 for line in process.stdout:
-                    value = line.strip()
+                    import re
+                    value = re.sub(r"\x1b\[[0-9;]*m", "", line).strip()
+                    code = re.fullmatch(r"[A-Z0-9]{4,8}-[A-Z0-9]{4,8}", value)
+                    if code:
+                        _LOGIN["code"] = value
+                        messages.put(_LOGIN.get("url"))
                     parsed = urlsplit(value)
                     if parsed.scheme == "https" and parsed.hostname == "auth.openai.com":
                         _LOGIN["url"] = value
-                        messages.put(value)
+                        if not os.environ.get("AGENTSIM_PUBLIC_URL"):
+                            messages.put(value)
                 messages.put(None)
 
             threading.Thread(target=read_login, daemon=True).start()
@@ -87,7 +93,7 @@ class ChatGPTImageRuntime:
                 raise ValueError(
                     "Could not start image sign-in. Check the Codex CLI and port 1455."
                 )
-            return {"url": url}
+            return {"url": url, "code": _LOGIN.get("code", "")}
 
     @staticmethod
     def generate(prompt, llm, emit, actor, reference_paths=None):

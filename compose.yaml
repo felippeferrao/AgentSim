@@ -1,0 +1,26 @@
+services:
+  agentsim:
+    build: .
+    image: wabix/agentsim:latest
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${AGENTSIM_HTTP_PORT:-8080}:8080"
+    environment:
+      AGENTSIM_PUBLIC_URL: ${AGENTSIM_PUBLIC_URL:?Set AGENTSIM_PUBLIC_URL in your ignored .env file}
+      AGENTSIM_LOGIN_FILE: /run/secrets/site-login.json
+    volumes:
+      - ./data:/app/.local
+      - ./secrets/site-login.json:/run/secrets/site-login.json:ro
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

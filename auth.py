@@ -238,3 +238,21 @@ def connection_status():
             )
     result["ready"] = any(item["valid"] for item in result.values())
     return result
+
+
+def disconnect():
+    """Remove this application's OpenAI sessions, never another application's store."""
+    import native_images
+    with native_images._GENERATION_LOCK:
+        with native_images._LOGIN_LOCK:
+            process = native_images._LOGIN.get("process")
+            if process and process.poll() is None:
+                process.terminate()
+                process.wait(timeout=10)
+            native_images._LOGIN.clear()
+        with TOKEN_LOCK:
+            PENDING.clear()
+            for name in ("oauth", "registration", "provider", "image-provider"):
+                store(name, {})
+            for name in ("auth.json", "auth.json.tmp"):
+                (native_images.runtime_home() / name).unlink(missing_ok=True)

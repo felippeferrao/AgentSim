@@ -64,3 +64,8 @@ to the Software distributed with this notice. It does not impose branding
 requirements on independent images, documents or other content generated
 by a user of the Software. It does not change permissions already granted
 for earlier releases under their respective licenses.
+
+Third-party components distributed with the Software retain their respective
+licenses and notices, including the Archify runtime documented under
+architecture/licenses/. The project-specific terms above do not replace
+those third-party licenses or claim ownership of their trademarks.

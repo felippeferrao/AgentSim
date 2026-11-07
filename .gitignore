@@ -22,3 +22,11 @@ work/
 
 # Only the sanitized, configuration-only starter fixture is versioned.
 !examples/comic-studio/starter.sqlite3
+
+# Server-owned deployment state and access credentials.
+data/
+secrets/
+
+# Installation-specific configuration stays outside version control.
+deploy/nginx.conf
+compose.override.yaml
