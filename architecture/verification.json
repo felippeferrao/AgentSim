@@ -1,0 +1,16 @@
+{
+  "generator": "Archify 3.2.0",
+  "upstream": "https://github.com/tt-a1i/archify",
+  "revision": "a4065941f12be7967436261d9934784e381d423c",
+  "source": "architecture/agentsim.architecture.json",
+  "sourceSha256": "10717c9d391c2185bbb11d7369c75b066ffe47fe7d9728d80888c9f0cd22070c",
+  "output": "static/architecture.html",
+  "outputSha256": "525d6a0607cc55182fe68740e46ff0b4e9af61ff9253ecf051a6a92c6531cb29",
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "visualReview": "Not part of the build; inspect the embedded viewer after UI changes."
+}

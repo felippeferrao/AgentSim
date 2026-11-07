@@ -1,0 +1,402 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "WABIX AgentSim \u00b7 Runtime architecture",
+    "output": "work/architecture-build/architecture.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/felippeferrao/AgentSim.git",
+      "revision": "baa07248a6a9e197d429e27b5907560a98a2eba1"
+    }
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser workspace",
+      "sublabel": "Chat \u00b7 logs \u00b7 file previews",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "static/app.js",
+          "line": 1065,
+          "end_line": 1074
+        },
+        {
+          "path": "static/app.js",
+          "line": 1089,
+          "end_line": 1097
+        }
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "security",
+      "label": "Nginx HTTPS",
+      "sublabel": "HTTPS reverse proxy",
+      "pos": [
+        350,
+        60
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "deploy/nginx.conf.example",
+          "line": 11,
+          "end_line": 33
+        },
+        {
+          "path": "compose.yaml",
+          "line": 7,
+          "end_line": 14
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Python API + login",
+      "sublabel": "Session required \u00b7 background jobs",
+      "pos": [
+        680,
+        60
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "server.py",
+          "line": 404,
+          "end_line": 440
+        },
+        {
+          "path": "server.py",
+          "line": 897,
+          "end_line": 918
+        },
+        {
+          "path": "site_access.py",
+          "line": 52,
+          "end_line": 69
+        }
+      ]
+    },
+    {
+      "id": "sqlite",
+      "type": "database",
+      "label": "SQLite state",
+      "sublabel": "Profiles \u00b7 chats \u00b7 execution history",
+      "pos": [
+        1000,
+        60
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "server.py",
+          "line": 53,
+          "end_line": 61
+        },
+        {
+          "path": "server.py",
+          "line": 893,
+          "end_line": 915
+        }
+      ]
+    },
+    {
+      "id": "manager",
+      "type": "backend",
+      "label": "Team orchestrator",
+      "sublabel": "Plans small tasks \u00b7 chooses skills",
+      "pos": [
+        350,
+        300
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "orchestration.py",
+          "line": 230,
+          "end_line": 263
+        },
+        {
+          "path": "runtime.py",
+          "line": 529,
+          "end_line": 533
+        }
+      ]
+    },
+    {
+      "id": "agents",
+      "type": "backend",
+      "label": "Available agents",
+      "sublabel": "Selected models \u00b7 explicit tools",
+      "pos": [
+        680,
+        300
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "runtime.py",
+          "line": 537,
+          "end_line": 544
+        },
+        {
+          "path": "runtime.py",
+          "line": 609,
+          "end_line": 617
+        },
+        {
+          "path": "orchestration.py",
+          "line": 254,
+          "end_line": 263
+        }
+      ]
+    },
+    {
+      "id": "models",
+      "type": "external",
+      "label": "Connected model API",
+      "sublabel": "Streaming Responses \u00b7 per agent",
+      "pos": [
+        1000,
+        300
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "runtime.py",
+          "line": 231,
+          "end_line": 253
+        }
+      ]
+    },
+    {
+      "id": "files",
+      "type": "database",
+      "label": "Generated files",
+      "sublabel": "PDF \u00b7 PNG \u00b7 SVG \u00b7 chart HTML",
+      "pos": [
+        300,
+        550
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "harness.py",
+          "line": 44,
+          "end_line": 57
+        }
+      ]
+    },
+    {
+      "id": "harness",
+      "type": "backend",
+      "label": "Integration harness",
+      "sublabel": "Granted tools \u00b7 artifact evidence",
+      "pos": [
+        680,
+        550
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "harness.py",
+          "line": 494,
+          "end_line": 510
+        },
+        {
+          "path": "harness.py",
+          "line": 44,
+          "end_line": 80
+        }
+      ]
+    },
+    {
+      "id": "images",
+      "type": "backend",
+      "label": "Native image runtime",
+      "sublabel": "Codex CLI \u2192 ChatGPT images",
+      "pos": [
+        1000,
+        550
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "native_images.py",
+          "line": 126,
+          "end_line": 178
+        }
+      ]
+    },
+    {
+      "id": "mcp",
+      "type": "external",
+      "label": "MCP connections",
+      "sublabel": "Discovered tools \u00b7 granular grants",
+      "pos": [
+        680,
+        800
+      ],
+      "size": [
+        200,
+        76
+      ],
+      "sources": [
+        {
+          "path": "external_mcp.py",
+          "line": 304,
+          "end_line": 317
+        },
+        {
+          "path": "external_mcp.py",
+          "line": 257,
+          "end_line": 268
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browser-https",
+      "from": "browser",
+      "to": "nginx",
+      "label": "HTTPS",
+      "variant": "security"
+    },
+    {
+      "id": "private-proxy",
+      "from": "nginx",
+      "to": "api",
+      "label": "Private proxy"
+    },
+    {
+      "id": "persistent-history",
+      "from": "api",
+      "to": "sqlite",
+      "label": "Save state"
+    },
+    {
+      "id": "managed-team",
+      "from": "api",
+      "to": "manager",
+      "label": "Team with manager"
+    },
+    {
+      "id": "direct-agent",
+      "from": "api",
+      "to": "agents",
+      "label": "One agent"
+    },
+    {
+      "id": "dynamic-delegation",
+      "from": "manager",
+      "to": "agents",
+      "label": "Delegate"
+    },
+    {
+      "id": "model-inference",
+      "from": "agents",
+      "to": "models",
+      "label": "Responses"
+    },
+    {
+      "id": "authorized-tools",
+      "from": "agents",
+      "to": "harness",
+      "label": "Tool grants"
+    },
+    {
+      "id": "artifact-write",
+      "from": "harness",
+      "to": "files",
+      "label": "Write outputs"
+    },
+    {
+      "id": "native-images",
+      "from": "harness",
+      "to": "images",
+      "label": "Images"
+    },
+    {
+      "id": "mcp-grants",
+      "from": "harness",
+      "to": "mcp",
+      "label": "Granted calls"
+    },
+    {
+      "id": "live-events",
+      "from": "api",
+      "to": "browser",
+      "label": "Live SSE",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Explore this map",
+      "items": [
+        "Click a component to inspect its source evidence. Search, zoom, trace a route, or follow upstream/downstream dependencies.",
+        "This is a source-backed system map, not a live execution monitor. Watch & run shows actual executions."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Agent decisions",
+      "items": [
+        "Teams with a configured manager use CrewAI hierarchical delegation. The manager can adapt, skip, revisit and combine work using the available agents.",
+        "One agent bypasses team management. Teams without a manager retain the sequential compatibility path. Skills guide decisions and never grant tools implicitly."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Deployment model",
+      "items": [
+        "Nginx terminates TLS; the AgentSim container is exposed only through host loopback. API, agents, tools and the image CLI run in the same container.",
+        "SQLite, generated files and independent provider credentials persist in a server-mounted data directory. Login configuration is mounted separately.",
+        "OpenAI and MCP access depends on configured accounts, available models and explicit per-agent permissions. This map does not claim those connections are currently active."
+      ]
+    }
+  ]
+}
