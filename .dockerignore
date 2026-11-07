@@ -18,3 +18,10 @@ secrets
 
 deploy/nginx.conf
 compose.override.yaml
+
+# Runtime-only installation files and build logs.
+nginx.conf
+services-before.txt
+deployed-revision.txt
+*.log
+*.tar.gz
