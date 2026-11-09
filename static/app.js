@@ -996,14 +996,16 @@ async function connection() {
       api("connection/status"),
     ]);
     connectionState = status;
+    const remote = !["localhost", "127.0.0.1"].includes(location.hostname);
     modal(
-      `<h2>Connect your account</h2><p>Real AI is the main workspace. Your account must pass a backend access check before a real run can start.</p><button class="primary" id="oauth">Continue with ChatGPT</button> <button id="logout">Disconnect OpenAI</button><p>${esc(status.chatgpt.message)}</p><p><small>If OpenAI shows a browser check or HTTP 403, complete sign-in in your regular browser. No connection is assumed until the callback and provider check succeed.</small></p><div id="signInLink"></div><details><summary>Complete sign-in on a remote server</summary><p>If OpenAI returns to a localhost page that cannot open, copy that entire URL from the sign-in tab and paste it here. It is submitted securely to this workspace.</p><form id="remoteOAuth"><label class="field">Callback URL<input name="url" type="password" autocomplete="off" required></label><button>Complete ChatGPT sign-in</button></form></details><details><summary>Alternative: your API connection</summary><p>Choose this alternative deliberately. Credentials are shared only as a connection; each agent selects its own model in Profile. Use a provider with streaming Responses support.</p><form id="settings"><label class="field">API base URL<input type="url" name="base_url" value="${esc(c.base_url)}"></label><label class="field">API key<input type="password" autocomplete="off" name="api_key" placeholder="${c.has_key ? "Saved · leave blank to keep" : "Enter locally, never in chat"}"></label><button class="primary">Save and check API connection</button></form><p>${esc(status.api.message)}</p></details><button id="recheck">Check connection again</button><p class="muted">Models are selected in Agents → Profile. Closing this pop-up keeps real execution unavailable until a connection is verified. Execution always uses the connected models.</p>`,
+      `<h2>Connect your account</h2><p>Real AI is the main workspace. Your account must pass a backend access check before a real run can start.</p><button class="primary" id="oauth">Continue with ChatGPT</button> <button id="logout">Disconnect OpenAI</button><p>${esc(status.chatgpt.message)}</p><p><small>If OpenAI shows a browser check or HTTP 403, complete sign-in in your regular browser. No connection is assumed until the callback and provider check succeed.</small></p><div id="signInLink"></div><details id="remoteOAuthSteps"><summary>Finish ChatGPT sign-in on this server</summary><ol><li>Sign in and approve access in the OpenAI tab.</li><li>When the browser goes to <code>127.0.0.1</code>, copy the full address, even if that page fails to load.</li><li>Return here, paste the address, and select <strong>Finish sign-in</strong>.</li></ol><form id="remoteOAuth"><label class="field">Return address<input name="url" type="password" autocomplete="off" spellcheck="false" required></label><button class="primary">Finish sign-in</button></form><p class="muted">Use this form only. The address contains a short-lived sign-in code.</p></details><details><summary>Alternative: your API connection</summary><p>Choose this alternative deliberately. Credentials are shared only as a connection; each agent selects its own model in Profile. Use a provider with streaming Responses support.</p><form id="settings"><label class="field">API base URL<input type="url" name="base_url" value="${esc(c.base_url)}"></label><label class="field">API key<input type="password" autocomplete="off" name="api_key" placeholder="${c.has_key ? "Saved · leave blank to keep" : "Enter locally, never in chat"}"></label><button class="primary">Save and check API connection</button></form><p>${esc(status.api.message)}</p></details><button id="recheck">Check connection again</button><p class="muted">Models are selected in Agents → Profile. Closing this pop-up keeps real execution unavailable until a connection is verified. Execution always uses the connected models.</p>`,
     );
     $("#oauth").onclick = async () => {
       try {
         const result = await api("oauth/start", {});
         $("#signInLink").innerHTML =
-          `<p><a class="signin-link" href="${esc(result.url)}" target="_blank" rel="noreferrer">Open the official sign-in page →</a></p><p>Keep AgentSim running. Complete the browser sign-in, then return and check the connection.</p>`;
+          `<p><a class="signin-link" href="${esc(result.url)}" target="_blank" rel="noreferrer">Open the official sign-in page →</a></p><p>${remote ? "After approving access, follow the steps below to connect this server." : "Complete sign-in in the browser, then return and check the connection."}</p>`;
+        if (remote) $("#remoteOAuthSteps").open = true;
         window.open(result.url, "_blank", "noopener");
       } catch (e) {
         toast(e.message);
@@ -1011,8 +1013,21 @@ async function connection() {
     };
     $("#remoteOAuth").onsubmit = async (e) => {
       e.preventDefault();
-      try { await api("oauth/complete", Object.fromEntries(new FormData(e.target))); await refreshConnection(); connection(); }
-      catch (error) { toast(error.message); }
+      const form = e.currentTarget;
+      const button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        const url = new FormData(form).get("url").trim();
+        await api("oauth/complete", { url });
+        form.reset();
+        const status = await refreshConnection();
+        toast(status.chatgpt.message);
+        await connection();
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        button.disabled = false;
+      }
     };
     $("#logout").onclick = async () => {
       await api("openai/disconnect", {});

@@ -1,5 +1,11 @@
 # Delivery status — 2026-10-20, continued implementation
 
+## Remote ChatGPT sign-in
+
+The Connection dialog opens the return-address form when sign-in starts on a remote host. It explains that the OpenAI tab will return to loopback and that the operator must copy the full address into the original AgentSim dialog. The existing protected endpoint checks the loopback address and pending OAuth state. The interface refreshes the provider access status after completion. Local sign-in still receives the callback directly.
+
+Verification: 76 Python tests passed. A scripted dialog check covered remote and loopback behavior. An authenticated HTTPS check on the remote deployment confirmed the updated script and rejection of invalid callback origins and states. Account authorization is a separate end-to-end check.
+
 ## Latest: working native ChatGPT images and chat attachments
 
 The prior claim that all image generation required an API key was too broad. The subscription-sharing Responses endpoint still rejects hosted image_generation, but the official native ChatGPT/Codex runtime supports image generation with ChatGPT plan usage. `native_images.ChatGPTImageRuntime` now powers image-enabled ChatGPT agents through an independently authenticated, private AgentSim image session. No other application's credential cache was copied. No image API key was supplied. The Tools image form now leads with native ChatGPT sign-in/status; an API provider is optional.
