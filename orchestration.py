@@ -17,16 +17,21 @@ class InteractionTool:
     """Track public delegation payloads, never raw LLM reasoning."""
 
     def _execute(self, agent_name, task, context=None):
+        requested = self.sanitize_agent_name(agent_name)
         target = next(
-            (
-                a
-                for a in self.agents
-                if self.sanitize_agent_name(a.role) == self.sanitize_agent_name(agent_name)
-            ),
+            (a for a in self.agents if self.sanitize_agent_name(a.role) == requested),
             None,
         )
         if target is None:
-            return super()._execute(agent_name, task, context)
+            aliases = [
+                a for a in self.agents
+                if requested in {
+                    self.sanitize_agent_name(a.profile_data[key]) for key in ("id", "name", "role")
+                }
+            ]
+            if len(aliases) != 1:
+                return super()._execute(agent_name, task, context)
+            target = aliases[0]
         sender = self.owner
         recipient = target.profile_data
         route = {
@@ -39,7 +44,7 @@ class InteractionTool:
         self.event_sink(
             "delegation", {**route, "kind": self.kind, "message": task, "context": context or ""}
         )
-        result = super()._execute(agent_name, task, context)
+        result = super()._execute(target.role, task, context)
         self.event_sink(
             "reply",
             {
@@ -98,6 +103,9 @@ class ObservedAgent(Agent):
                 manager=True,
             ))
         from artifact_history import ArtifactReader
+        from brain import tools as brain_tools
+
+        tools.extend(brain_tools(self.profile_data, self.llm.config, self.event_sink))
 
         tools.append(
             ArtifactReader(
@@ -227,6 +235,7 @@ def execute_managed(state, body, emit, config):
         "Inspect the available agents and their actual capabilities and permissions below. "
         "Decide which tasks you can complete yourself and delegate other tasks when useful, "
         "using delegate_work_to_coworker or ask_question_to_coworker. "
+        "Pass the coworker's saved ID or full routing label as the coworker argument. "
         "Choose and revise the plan, task size, recipients and order based on actual replies. "
         "You may revisit, skip or combine work; no specialist name, full roster or fixed sequence is required. "
         "If an agent is absent, adapt the plan using the remaining agents and your own capabilities. "

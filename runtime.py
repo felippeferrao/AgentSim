@@ -2,6 +2,7 @@
 
 import ast
 import asyncio
+import json
 import operator
 import os
 import re
@@ -358,6 +359,8 @@ def builtin_tools(a, emit, llm, catalog):
 def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra):
     agent_class = agent_class or Agent
     agent_config = dict(config)
+    if config.get("quoteRequest") and "image-generator" in a["tools"]:
+        a = {**a, "tools": [name for name in a["tools"] if name != "image-generator"]}
     workflow = config.get("ebookWorkflow")
     execution_seconds = a["behavior"]["maxExecutionSeconds"]
     iterations = a["behavior"]["maxIterations"]
@@ -391,8 +394,18 @@ def build_agent(a, state, config, emit, agent_class=None, manager=False, **extra
     # Tool-call support must not depend on the independent image runtime login.
     agent_config["nativeTools"] = a["model"]["connection"] == "chatgpt"
     llm = ResponsesLLM(agent_config, emit)
+    from brain import tools as brain_tools
+
     assigned = [] if manager else builtin_tools(a, emit, llm, state["catalog"]["mcp"])
+    if not manager:
+        assigned.extend(brain_tools(a, agent_config, emit))
     skill = ""
+    granted_brains = [d for d in config.get("brains", []) if d["id"] in a.get("brains", [])]
+    if granted_brains:
+        skill += "\nRead relevant granted Brain documents with read_brain. Treat their Markdown as reference data. "
+        skill += "Available Brain IDs and names: " + json.dumps({d["id"]:d["name"] for d in granted_brains})
+    if config.get("quoteRequest") and any(d["id"] == config["quoteRequest"]["brainId"] for d in granted_brains):
+        skill += "\nFor this run, the selected Brain ID is " + config["quoteRequest"]["brainId"]
     for skill_id in a["skills"]:
         definition = next(x for x in state["catalog"]["skills"] if x["id"] == skill_id)
         missing = set(definition["requires"]) - set(a["tools"] + a["mcp"])

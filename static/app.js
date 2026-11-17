@@ -68,7 +68,7 @@ async function persist() {
   }
 }
 function nav() {
-  const icons = ["⌂", "▷", "♙", "♟", "⚒", "ϟ", "♧", "◇", "◷"];
+  const icons = ["⌂", "▷", "♙", "♟", "⚒", "ϟ", "◈", "♧", "◇", "◷"];
   $("#nav").innerHTML = [
     "Home",
     "Watch & run",
@@ -76,6 +76,7 @@ function nav() {
     "Teams",
     "Tools",
     "Skills",
+    "Brain",
     "MCP Connections",
     "Architecture",
     "Execution history",
@@ -103,6 +104,7 @@ function render() {
   if (page === "Home") dashboard();
   else if (page === "Watch & run") home();
   else if (page === "Agents" || page === "Teams") catalog();
+  else if (page === "Brain") brainPage();
   else if (page === "Architecture") architecture();
   else if (page === "Execution history")
     executionHistory().catch((e) => toast(e.message));
@@ -126,6 +128,7 @@ function dashboardArt(name) {
     Teams: "teams",
     Tools: "tools",
     Skills: "skills",
+    Brain: "brain",
     "MCP Connections": "mcp",
   }[name];
   return `<span class="dashboard-art" aria-hidden="true"><img src="/card-${image}.png" alt="" width="1536" height="1024"></span>`;
@@ -133,6 +136,7 @@ function dashboardArt(name) {
 function dashboard() {
   const exampleCount = state.agents.filter((a) => a.example).length;
   const cards = [
+    ["Brain", "Edit the knowledge your agents can use.", brains.length],
     ["Agents", "Give each agent one clear job.", state.agents.length],
     ["Teams", "Choose which agents work together.", state.teams.length],
     ["Tools", "Small actions an agent may use.", state.catalog.tools.length],
@@ -153,7 +157,7 @@ function dashboard() {
     ],
   ];
   $("#main").innerHTML =
-    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Load example team"}</button><button id="goWatch">Watch & run →</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}">${dashboardArt(name)}<span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>${state.teams.some((t) => t.id === "comic-story-studio") ? "1. Open Watch & run. 2. Choose Comic Story Studio and open the chat. 3. Describe your theme and story; Orchestrator plans tasks and coordinates the available agents." : "1. Create an agent or load examples. 2. Choose its job and permissions. 3. Choose a team or agent in Watch & run and start a conversation."}</p><button id="dashboardConnect">Connection setup</button></section>`;
+    `<h1>Your AI workshop</h1><p class="subtitle">Build a team. Give it a goal. Learn one step at a time.</p><section class="panel"><h2>Start here</h2><p>${state.agents.length ? `You have ${state.agents.length} saved agents. ${exampleCount} ${exampleCount === 1 ? "is an example configuration" : "are example configurations"}. A saved agent is a setup, not proof that AI has run.` : "This workspace is empty. Start with your own agent, or load a small example team."}</p><div class="toolbar"><button class="primary" id="ownSetup">${state.agents.length ? "Open my agents" : "Start empty · create my first agent"}</button><button id="examples">${exampleCount ? "View example agents" : "Open Brain examples"}</button><button id="goWatch">Watch & run →</button></div><small>Saved on this computer in a persistent SQLite database (agentsim.db). Account credentials stay in protected local files and are never part of setup exports.</small></section><div class="list dashboard-cards">${cards.map(([name, description, count]) => `<button class="panel dashboard-card" data-open="${name}">${dashboardArt(name)}<span class="dashboard-count">${esc(count)}</span><h2>${name}</h2><p>${description}</p><span>Open →</span></button>`).join("")}</div><section class="panel" style="margin-top:20px"><h2>Your next steps</h2><p>${state.teams.some((t) => t.id === "comic-story-studio") ? "1. Open Watch & run. 2. Choose Comic Story Studio and open the chat. 3. Describe your theme and story; Orchestrator plans tasks and coordinates the available agents." : "1. Create an agent or load examples. 2. Choose its job and permissions. 3. Choose a team or agent in Watch & run and start a conversation."}</p><button id="dashboardConnect">Connection setup</button></section>`;
   document.querySelectorAll("[data-open]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -168,8 +172,7 @@ function dashboard() {
   };
   $("#examples").onclick = async () => {
     try {
-      if (!exampleCount) state = await api("examples", {});
-      page = "Agents";
+      page = exampleCount ? "Agents" : "Brain";
       render();
     } catch (e) {
       toast(e.message);
@@ -200,9 +203,9 @@ function usageLabel(r, until = Infinity) {
     ) + " tokens"
   );
 }
-function agentActivity(id) {
+function agentActivity(id, record = run) {
   let status = "idle";
-  for (const event of run?.events || []) {
+  for (const event of record?.events || []) {
     const d = event.data;
     if (d.agentId !== id) continue;
     if (
@@ -213,8 +216,8 @@ function agentActivity(id) {
     if (event.type === "agent_completed") status = "done";
     if (event.type === "agent_failed") status = "failed";
   }
-  if (run?.failed && ["active", "waiting"].includes(status)) status = "failed";
-  if (run?.completed && ["active", "waiting"].includes(status)) status = "done";
+  if (record?.failed && ["active", "waiting"].includes(status)) status = "failed";
+  if (record?.completed && ["active", "waiting"].includes(status)) status = "done";
   return status;
 }
 function liveAgentCard(a, managerId) {
@@ -250,6 +253,7 @@ function resetConversation() {
   realWatch();
 }
 function realWatch() {
+  if (quoteMode) return quoteWatch();
   if (mode === "team" && !activeTeamId && state.teams.length === 1)
     activeTeamId = state.teams[0].id;
   const target = chatTarget();
@@ -257,7 +261,7 @@ function realWatch() {
   const targetId = mode === "one" ? activeAgentId : activeTeamId;
   $("#main").classList.add("chat-page");
   $("#main").innerHTML =
-    `<h1>Watch & run</h1><p class="subtitle">${target?.id === "comic-story-studio" ? "Describe your request. The manager breaks it into small tasks and calls available agents when needed." : "Chat with your team or agent. Follow each execution on the right."}</p>
+    `<h1>Watch & run</h1><p class="subtitle">${target?.id === "comic-story-studio" ? "Describe your request. The manager breaks it into small tasks and calls available agents when needed." : "Chat with your team or agent. Follow each execution on the right."}</p>${watchModePicker()}
     <section class="panel chat-setup"><div class="target-mode" role="group" aria-label="Who to call"><button id="teamMode" aria-pressed="${mode === "team"}" class="${mode === "team" ? "primary" : ""}" ${busy ? "disabled" : ""}>Team</button><button id="one" aria-pressed="${mode === "one"}" class="${mode === "one" ? "primary" : ""}" ${busy ? "disabled" : ""}>One agent</button></div>
     <label class="target-label">${mode === "one" ? "Agent" : "Team"}<select id="executionTarget" aria-label="${mode === "one" ? "Agent to call" : "Team to call"}" ${busy ? "disabled" : ""}><option value="">Choose ${mode === "one" ? "an agent" : "a team"}</option>${options.map((t) => `<option value="${esc(t.id)}" ${t.id === targetId ? "selected" : ""}>${esc(t.name)}</option>`).join("")}</select></label>
     <button id="openChat" ${busy || !target ? "disabled" : ""}>${activeConversation ? "New chat" : "Open chat"}</button>
@@ -267,6 +271,7 @@ function realWatch() {
     <div id="chatMessages" class="chat-messages" role="log" aria-label="Chat messages" aria-live="polite"></div>
     <form id="chatForm" class="chat-composer"><label for="chatMessage">Message</label><textarea id="chatMessage" placeholder="What would you like to do?" maxlength="8000" rows="3" ${!activeConversation || busy ? "disabled" : ""}>${esc(messageDraft)}</textarea><div><small>Enter to send · Shift+Enter for a new line</small><button class="orange" id="sendMessage" ${!activeConversation || busy ? "disabled" : ""}>${busy ? "Working…" : "Send"}</button></div></form></section>
     <div class="chat-divider" role="separator" tabindex="0" aria-label="Resize chat and execution" aria-orientation="vertical" aria-valuemin="30" aria-valuemax="75" aria-valuenow="60" title="Drag to resize · Arrow keys to adjust · Double-click to reset"></div><section class="panel execution-column" aria-label="Execution details"><div class="section-heading"><h2>Execution</h2><span class="badge ${busy ? "working" : ""}" id="executionStatus">${busy ? "● Live" : run?.failed ? "Failed" : run?.completed ? "Complete" : "Ready"}</span></div><div id="turnPicker"></div><div id="liveAgents" class="chat-agent-strip"></div><div id="executionScroll" class="execution-scroll" tabindex="0" aria-label="Scrollable execution steps"><div id="executionSteps"></div><div id="executionArtifacts"></div></div><small id="executionUsage"></small></section></div>`;
+  bindWatchMode();
   setupChatDivider();
   $("#teamMode").onclick = () => {
     if (mode !== "team") {
@@ -330,7 +335,96 @@ function realWatch() {
   renderTurnPicker();
   updateExecution();
 }
+function savedQuotePicker() {
+  const saved = state.runs.filter(r => r.quoteRequest && r.id !== run?.id).reverse();
+  if (!saved.length) return '<p class="muted">No previous quotes yet.</p>';
+  const options = saved.map(r => {
+    const time = r.events?.[0]?.time;
+    const date = Number.isFinite(time) ? new Date(time * 1000).toLocaleString() : "";
+    const result = r.failed ? "Failed" : "Complete";
+    const label = [r.quoteRequest.partner, r.quoteRequest.vehicle, date, result].filter(Boolean).join(" · ");
+    return `<option value="${esc(r.id)}" ${r.id === previousQuoteId ? "selected" : ""}>${esc(label)}</option>`;
+  }).join("");
+  return `<label class="field">Saved quotes<select id="savedQuote"><option value="">Choose a previous quote</option>${options}</select></label>`;
+}
+
+function showPreviousQuote() {
+  const panel = $("#previousQuoteDetails");
+  if (!panel) return;
+  panel.innerHTML = previousQuote
+    ? `<div class="execution-scroll" tabindex="0" aria-label="Previous execution steps">${interactionTimeline(previousQuote)}${artifactCards(previousQuote)}</div>`
+    : "";
+}
+
+function switchQuoteExecution(tab) {
+  quoteExecutionTab = tab;
+  for (const name of ["current", "previous"]) {
+    const selected = name === tab;
+    const button = $("#quote-tab-" + name);
+    button.setAttribute("aria-selected", selected);
+    button.tabIndex = selected ? 0 : -1;
+    $("#quote-panel-" + name).hidden = !selected;
+  }
+  updateExecution();
+}
+
+function quoteWatch() {
+  $("#main").innerHTML = `<h1>Watch & run</h1><p class="subtitle">Simulate a motor insurance quote from your Brain.</p>${watchModePicker()}
+    ${motorQuoteMarkup()}<div class="quote-workspace">
+    <section class="panel"><div class="section-heading"><h2>Crew office</h2><div class="toolbar office-controls"><button id="replayOffice" type="button" disabled>Replay dialogue</button><button id="officeSound" type="button" aria-pressed="${officeSoundEnabled()}">${officeSoundEnabled() ? "Sound on" : "Sound off"}</button></div></div><div id="quoteOffice"></div><div id="quotePdf"></div><div id="quoteResult"></div></section>
+    <section class="panel execution-column"><div class="section-heading"><h2>Execution</h2><span class="badge" id="executionStatus">Ready</span></div>
+    <div class="toolbar quote-execution-tabs" role="tablist" aria-label="Quote executions">
+      <button id="quote-tab-current" type="button" role="tab" aria-controls="quote-panel-current">Current execution</button>
+      <button id="quote-tab-previous" type="button" role="tab" aria-controls="quote-panel-previous">Previous executions</button>
+    </div>
+    <div id="quote-panel-current" role="tabpanel" aria-labelledby="quote-tab-current">
+    <div id="liveAgents" hidden></div><div id="executionScroll" class="execution-scroll" tabindex="0">
+    <div id="executionSteps"></div><div id="executionArtifacts"></div></div><small id="executionUsage"></small></div>
+    <div id="quote-panel-previous" role="tabpanel" aria-labelledby="quote-tab-previous" hidden>${savedQuotePicker()}<div id="previousQuoteDetails"></div></div></section></div>`;
+  bindWatchMode();
+  bindMotorQuote();
+  $("#replayOffice").onclick = replayOfficeDialogue;
+  $("#officeSound").onclick = ({currentTarget}) => {
+    const enabled = !officeSoundEnabled();
+    localStorage.setItem("agentsim-office-sound", enabled ? "on" : "off");
+    currentTarget.textContent = enabled ? "Sound on" : "Sound off";
+    currentTarget.setAttribute("aria-pressed", enabled);
+    if (enabled) unlockOfficeAudio(true);
+  };
+  for (const name of ["current", "previous"]) {
+    const button = $("#quote-tab-" + name);
+    button.onclick = () => switchQuoteExecution(name);
+    button.onkeydown = e => {
+      if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+      e.preventDefault();
+      const other = name === "current" ? "previous" : "current";
+      switchQuoteExecution(other);
+      $("#quote-tab-" + other).focus();
+    };
+  }
+  if ($("#savedQuote")) $("#savedQuote").onchange = async ({target}) => {
+    const id = target.value;
+    previousQuoteId = id;
+    previousQuote = null;
+    showPreviousQuote();
+    updateExecution();
+    if (!id) return;
+    try {
+      const job = await api("jobs/" + id);
+      if (id !== previousQuoteId) return;
+      previousQuote = {...job.run, failed: job.status !== "completed", error: job.error};
+      showPreviousQuote();
+      updateExecution();
+    } catch (e) {
+      toast(e.message);
+    }
+  };
+  showPreviousQuote();
+  switchQuoteExecution(quoteExecutionTab);
+}
+
 function renderChatMessages() {
+  if (!$("#chatMessages")) return;
   const el = $("#chatMessages");
   if (!el) return;
   const old = el.scrollTop,
@@ -393,6 +487,17 @@ function updateExecution(resetScroll = false) {
       : busy
         ? "● Live"
         : "Ready";
+  if ($("#quoteOffice")) {
+    const officeRun = !busy && quoteExecutionTab === "previous" ? previousQuote : run;
+    const team = !officeRun && busy && state.teams.find(t => t.id === quoteDraft.team);
+    const starting = team && {
+      id: "quote-starting", managerId: team.manager,
+      roster: state.agents.filter(a => team.agents.includes(a.id)).map(a => ({
+        agentId: a.id, agent: a.name, avatar: a.avatar,
+      })),
+    };
+    showCrewOffice($("#quoteOffice"), officeRun || starting, busy);
+  }
   const roster = run?.roster || [];
   $("#liveAgents").innerHTML = roster
     .map((a) => liveAgentCard(a, run?.managerId))
@@ -449,6 +554,8 @@ async function loadConversation(id) {
   const latest =
     activeConversation.activeRunId || conversationTurns().at(-1)?.runId;
   run = latest ? (await api("jobs/" + latest)).run : null;
+  quoteMode = Boolean(run?.quoteRequest);
+  if (quoteMode) quoteDraft = { vehicle: run.quoteRequest.vehicle, team: activeTeamId };
   messageDraft = "";
   if (page === "Watch & run") realWatch();
   if (activeConversation.activeRunId && streamJobId !== latest) {
@@ -583,6 +690,7 @@ function agentEditor(id) {
       ["tools", "4 · Tools"],
       ["skills", "5 · Skills"],
       ["mcps", "6 · MCPs"],
+      ["brains", "7 · Brain"],
     ]
       .map(
         ([key, label], i) =>
@@ -648,9 +756,9 @@ function agentEditor(id) {
       )
       .join(
         "",
-      )}</section><div class="editor-footer">${a.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<div class="editor-navigation"><button type="button" id="agentPrevious">← Back</button><button type="button" id="agentNext">Next →</button><button class="primary">Save agent</button></div></div></form>`,
+      )}</section><section id="panel-brains" role="tabpanel" aria-labelledby="tab-brains" hidden><h3>Brain access</h3><p>Choose which Markdown documents this agent can read.</p>${brains.length ? checks("brains", a.brains || [], brains) : "<p>No Brains have been saved yet.</p>"}</section><div class="editor-footer">${a.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<div class="editor-navigation"><button type="button" id="agentPrevious">← Back</button><button type="button" id="agentNext">Next →</button><button class="primary">Save agent</button></div></div></form>`,
   );
-  const stepKeys = ["profile", "job", "settings", "tools", "skills", "mcps"];
+  const stepKeys = ["profile", "job", "settings", "tools", "skills", "mcps", "brains"];
   let activeStep = 0,
     modelRequest = 0,
     activeConnection = null;
@@ -773,6 +881,7 @@ function agentEditor(id) {
       tools: f.getAll("tools"),
       skills: f.getAll("skills"),
       mcp: f.getAll("mcp"),
+      brains: f.getAll("brains"),
       profileVersion: 1,
     };
     [
@@ -839,7 +948,7 @@ function editor(key, id) {
   if (key === "agents") return agentEditor(id);
   const team = state.teams.find((t) => t.id === id) || { name: "", agents: [] };
   modal(
-    `<h2>${id ? "Edit" : "Create"} team</h2><form id="teamForm"><label class="field">Name<input name="name" maxlength="80" value="${esc(team.name)}" required></label><label class="field">Team manager<select name="manager" id="teamManager" aria-label="Team manager" required><option value="">Choose the agent who coordinates this team</option>${state.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === team.manager ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select><small>The manager decides which agents to call and in what order. It coordinates through delegation; the other agents use their own tools and MCP permissions.</small></label><label class="check"><input type="checkbox" name="skillsEnabled" ${team.skillsEnabled !== false ? "checked" : ""}>Allow skills in this team</label><p class="muted">When off, skills are blocked for all members, including automatic discovery by the manager. Tool permissions are unchanged.</p><p>Select the manager and at least one other agent. The order below is not an execution sequence.</p>${checks("agents", team.agents, state.agents)}${team.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<button class="primary">Save team</button></form>`,
+    `<h2>${id ? "Edit" : "Create"} team</h2><form id="teamForm"><label class="field">Name<input name="name" maxlength="80" value="${esc(team.name)}" required></label><label class="field">Motor Coach partner <input name="quotePartner" maxlength="100" value="${esc(team.quotePartner)}"><small>Use a partner name from a pricing Brain granted to this team.</small></label><label class="field">Team manager<select name="manager" id="teamManager" aria-label="Team manager" required><option value="">Choose the agent who coordinates this team</option>${state.agents.map((a) => `<option value="${esc(a.id)}" ${a.id === team.manager ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select><small>The manager decides which agents to call and in what order. It coordinates through delegation; the other agents use their own tools and MCP permissions.</small></label><label class="check"><input type="checkbox" name="skillsEnabled" ${team.skillsEnabled !== false ? "checked" : ""}>Allow skills in this team</label><p class="muted">When off, skills are blocked for all members, including automatic discovery by the manager. Tool permissions are unchanged.</p><p>Select the manager and at least one other agent. The order below is not an execution sequence.</p>${checks("agents", team.agents, state.agents)}${team.example ? '<label class="check"><input type="checkbox" name="makeOwn">Save as my own configuration</label>' : ""}<button class="primary">Save team</button></form>`,
   );
   $("#teamManager").onchange = (e) => {
     const checkbox = [
@@ -858,6 +967,7 @@ function editor(key, id) {
         manager: f.get("manager"),
         skillsEnabled: f.has("skillsEnabled"),
       };
+      if (f.get("quotePartner").trim()) result.quotePartner = f.get("quotePartner").trim();
       if (team.example) result.example = !f.has("makeOwn");
       const next = structuredClone(state);
       if (id) next.teams = next.teams.map((t) => (t.id === id ? result : t));
@@ -1103,34 +1213,41 @@ async function realRun(body) {
 async function followExecution(id) {
   streamJobId = id;
   try {
-    await new Promise((resolve, reject) => {
-      const stream = new EventSource("/api/jobs/" + id + "/events");
-      stream.onmessage = (event) => {
-        const snapshot = JSON.parse(event.data);
-        if (!run || run.id === id || !busy) {
-          run = {
-            ...snapshot.run,
-            failed: ["failed", "interrupted", "rejected"].includes(
-              snapshot.status,
-            ),
-            error: snapshot.error,
-          };
-          if (page === "Watch & run") updateExecution();
-        }
-        if (snapshot.status !== "running") {
+    const applySnapshot = snapshot => {
+      if (!run || run.id === id || !busy) {
+        run = {
+          ...snapshot.run,
+          failed: ["failed", "interrupted", "rejected"].includes(snapshot.status),
+          error: snapshot.error,
+        };
+        if (page === "Watch & run") updateExecution();
+      }
+    };
+    if (run?.quoteRequest) {
+      // Frequent complete snapshots keep the office live through embedded browser proxies.
+      let snapshot;
+      do {
+        snapshot = await api("jobs/" + id);
+        applySnapshot(snapshot);
+        if (snapshot.status === "running") await new Promise(resolve => setTimeout(resolve, 750));
+      } while (snapshot.status === "running");
+    } else {
+      await new Promise((resolve, reject) => {
+        const stream = new EventSource("/api/jobs/" + id + "/events");
+        stream.onmessage = event => {
+          const snapshot = JSON.parse(event.data);
+          applySnapshot(snapshot);
+          if (snapshot.status !== "running") {
+            stream.close();
+            resolve(snapshot);
+          }
+        };
+        stream.onerror = () => {
           stream.close();
-          resolve(snapshot);
-        }
-      };
-      stream.onerror = () => {
-        stream.close();
-        reject(
-          Error(
-            "Live connection lost. Reopen this saved chat to reconnect; its execution continues on the server.",
-          ),
-        );
-      };
-    });
+          reject(Error("Live connection lost. Reopen this saved chat to reconnect; its execution continues on the server."));
+        };
+      });
+    }
   } catch (e) {
     toast(e.message);
   } finally {
@@ -1153,6 +1270,7 @@ $("#help").onclick = () =>
 api("state")
   .then(async (s) => {
     state = s;
+    brains = await api("brains");
     conversationList = await api("conversations");
     const savedConversation = localStorage.getItem("agentsim-conversation");
     if (savedConversation) {

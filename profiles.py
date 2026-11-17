@@ -14,7 +14,7 @@ TEXT = {
     "exampleOutput": 2000,
     "expectedOutput": 2000,
 }
-EXTRA = set(TEXT) | {"model", "behavior", "profileVersion"}
+EXTRA = set(TEXT) | {"model", "behavior", "profileVersion", "brains"}
 
 
 def normalize(agent):
@@ -72,6 +72,11 @@ def validate(agent):
             raise ValueError(
                 f"Agent {key} must be plain text (up to {limit} characters); role and goal cannot be empty."
             )
+    brains = a.get("brains", [])
+    if not isinstance(brains, list) or len(brains) > 100 or any(
+        not isinstance(ident, str) or not 0 < len(ident) <= 80 for ident in brains
+    ) or len(set(brains)) != len(brains):
+        raise ValueError("Choose valid, unique Brain permissions.")
     m = a["model"]
     if (
         not isinstance(m, dict)

@@ -11,6 +11,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import auth
+import brain
+import pricing_demo
 import site_access
 import external_mcp
 import harness
@@ -54,6 +56,7 @@ def connect():
     db = sqlite3.connect(DB)
     db.execute("CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, data TEXT)")
     db.execute("CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY, data TEXT)")
+    db.execute("CREATE TABLE IF NOT EXISTS brains (id TEXT PRIMARY KEY, data TEXT)")
     return db
 
 
@@ -270,7 +273,7 @@ def validate(s):
                 if not {"id", "name", "job", "tools", "skills", "mcp"} <= set(a):
                     raise ValueError("Missing agent fields.")
                 a.update(profiles.validate(a))
-            elif set(a) - {"example", "manager", "skillsEnabled"} != {"id", "name", "agents"}:
+            elif set(a) - {"example", "manager", "skillsEnabled", "quotePartner"} != {"id", "name", "agents"}:
                 raise ValueError("Invalid team fields.")
         if len(set(ids)) != len(ids):
             raise ValueError("Duplicate ids.")
@@ -328,6 +331,8 @@ def validate(s):
             if not isinstance(a[k], list) or any(v not in allowed for v in a[k]):
                 raise ValueError("Unknown assignment.")
     for t in s["teams"]:
+        if "quotePartner" in t and (not isinstance(t["quotePartner"], str) or not 0 < len(t["quotePartner"].strip()) <= 100):
+            raise ValueError("Enter a partner name up to 100 characters.")
         if "skillsEnabled" in t and type(t["skillsEnabled"]) is not bool:
             raise ValueError("Team skillsEnabled must be true or false.")
         if not isinstance(t["agents"], list) or any(
@@ -463,6 +468,11 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(raw)
             return
+        if url.path == "/api/brains/pricing-template":
+            return self.reply({"markdown": brain.EXAMPLE.read_text()})
+        if url.path == "/api/brains":
+            with connect() as db:
+                return self.reply(brain.list_brains(db))
         if url.path == "/api/image-runtime":
             return self.reply(harness.ChatGPTImageRuntime.settings())
         if url.path == "/api/image-provider":
@@ -629,6 +639,22 @@ class Handler(BaseHTTPRequestHandler):
                     auth.disconnect()
                 return self.reply({"ok": True})
             s = read()
+            if self.path == "/api/brains/save":
+                with LOCK, connect() as db:
+                    document = brain.save_brain(db, body)
+                return self.reply(document)
+            if self.path == "/api/brains/pricing-demo":
+                model = body.get("model", "")
+                connection = body.get("connection", "chatgpt")
+                if not isinstance(model, str) or not model.strip() or len(model) > 150 or connection not in ("chatgpt", "api"):
+                    raise ValueError("Select a connected model for the pricing agents.")
+                with LOCK:
+                    latest = read()
+                    with connect() as db:
+                        document = pricing_demo.install(db, latest, model, connection)
+                        validate(latest)
+                        db.execute("INSERT OR REPLACE INTO state VALUES (1,?)", (json.dumps(latest),))
+                return self.reply(document)
             if self.path == "/api/conversations":
                 return self.reply(conversations().create(s, body), 201)
             if self.path == "/api/image-runtime/login":
@@ -817,6 +843,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/api/real-run":
                 if any(j["status"] == "running" for j in JOBS.values()):
                     raise ValueError("Wait for the current run to finish.")
+                quote_request = body.get("quote")
                 conversation = None
                 context_truncated = False
                 if body.get("conversationId"):
@@ -849,6 +876,34 @@ class Handler(BaseHTTPRequestHandler):
                     and not selected_team.get("manager")
                 ):
                     raise ValueError("Choose this team's manager in Teams first.")
+                with connect() as db:
+                    brains = brain.list_brains(db)
+                if quote_request is not None:
+                    if not isinstance(quote_request, dict) or not conversation or conversation["mode"] != "team":
+                        raise ValueError("Open a team chat for the quote.")
+                    sources = brain.pricing_documents(brains, selected_team, selected_agents)
+                    if len(sources) != 1:
+                        raise ValueError("Configure one shared pricing Brain for this team's partner. Grant it to its manager and an analyst with Calculator.")
+                    document = sources[0]
+                    inputs = brain.quote(document, quote_request.get("vehicle"), selected_team["quotePartner"])
+                    quote_request = {
+                        "brainId": document["id"], "vehicle": inputs["vehicle"],
+                        "partner": inputs["partner"],
+                    }
+                    illustration = brain.reusable_illustration(
+                        s["runs"], document, inputs["vehicle"],
+                    )
+                    body["goal"] = (
+                        "Simulate a fictional motor insurance quote for "
+                        + json.dumps({"vehicle": quote_request["vehicle"], "partner": quote_request["partner"]}, ensure_ascii=False)
+                        + ". Use the selected Brain and delegate calculate_quote to the pricing agent. "
+                        "Use its exact amounts and ask the publisher to call publish_quote if available. Deliver a one-page English quote PDF. "
+                        + (
+                            "Ask the illustrator to confirm the reusable vehicle illustration: "
+                            + illustration["url"] + ". Use that exact PNG in the PDF."
+                            if illustration else "No saved image matches. Skip the illustrator and assemble a text PDF."
+                        )
+                    )
                 for agent in selected_agents:
                     if not agent["model"]["name"]:
                         raise ValueError(agent["name"] + ": select a model in Profile first.")
@@ -862,7 +917,14 @@ class Handler(BaseHTTPRequestHandler):
                 run_config = dict(auth.settings())
                 job_id = str(uuid.uuid4())
                 run_config["run_id"] = job_id
+                run_config["brains"] = brains
                 run_config["conversationArtifacts"] = list(body.get("conversationArtifacts", []))
+                if quote_request is not None:
+                    run_config["quoteRequest"] = quote_request
+                    run_config["quoteProgress"] = {}
+                    run_config["quoteIllustration"] = illustration
+                    if illustration:
+                        run_config["conversationArtifacts"].append(illustration)
                 seed = {
                     "id": job_id,
                     "goal": body["goal"],
@@ -884,6 +946,8 @@ class Handler(BaseHTTPRequestHandler):
                     ],
                     "completed": False,
                 }
+                if quote_request is not None:
+                    seed["quoteRequest"] = quote_request
                 JOBS[job_id] = {
                     "id": job_id,
                     "status": "running",
@@ -936,6 +1000,11 @@ class Handler(BaseHTTPRequestHandler):
                                 },
                             )
                         steps = execute(s, body, emit, config=run_config)
+                        if quote_request is not None and not any(
+                            e["type"] == "tool_completed" and e["data"].get("implementation") == "brain.quote"
+                            for e in job["events"]
+                        ):
+                            raise ValueError("The crew finished without calculating the quote from the Brain.")
                         run = {
                             "id": job_id,
                             "goal": body["goal"],
@@ -958,6 +1027,8 @@ class Handler(BaseHTTPRequestHandler):
                             "completed": True,
                             "events": job["events"],
                         }
+                        if quote_request is not None:
+                            run["quoteRequest"] = quote_request
                         emit(
                             "run_completed",
                             {

@@ -1,5 +1,23 @@
 # Delivery status — 2026-10-20, continued implementation
 
+## Motor Coach and Brain
+
+Brain is a workspace Markdown catalog with individual agent grants. Each Brain supports a primary document and up to nine additional files. Motor Coach resolves one shared pricing Brain from the selected team's configured partner and the manager and analyst grants. The local pricing tool uses the saved revision, vehicle price and discount. Six fictional vehicle prices and Yuzzu and ING are bundled as editable demo data.
+
+The crew office follows recorded delegations and replies, queues short speech bubbles, animates full-body characters and closes with the manager's result. Saved runs can replay their dialogue. The sound control plays browser-generated cues for handoffs, replies and completion. The text of the actual exchange is retained in Execution. A PDF link appears in the publisher's delivery bubble and the manager's closing bubble, and remains available beneath the office once the file is generated.
+
+Motor Coach reuses an eligible stored PNG when available and skips image generation during quotes. The publisher reads a separately granted editorial Brain and creates the branded one-page PDF using the verified calculation. The editable palette uses the primary and secondary button colors from the [Belgian site's public stylesheet](https://cdn.website.axa.be/modules/projects/axabe/axabeweb/components/_shared/views/styles/axabe2026.css?v=639282812160000000).
+
+The production pricing Brain and local demo catalogue have saved illustrative PNGs for all six vehicles. New quotes reuse the corresponding asset. The office shows the manager’s opening activity, polls quote snapshots while the run is active, animates the full handoff and releases the prominent amount and PDF link at the closing message. Walking cues schedule four steps when office sound is enabled.
+
+A production Volkswagen Golf quote completed in 43 seconds. The first handoff arrived while the quote was running, and the resulting PDF contains the saved Golf illustration. All six catalogue images were also rendered through the PDF path locally. The production browser showed the quote in progress without the final PDF button, then displayed the amount and button in the manager’s closing bubble.
+
+The Execution panel separates the current run from prior quotes. Previous quotes show the vehicle, partner, timestamp, result, trace and saved artifacts. Starting a quote resets the current display immediately. Delegation accepts an exact, unique saved coworker name, ID or role alongside the full routing label so a name mismatch cannot prevent a valid handoff.
+
+
+Verification: 78 tests passed. A real Yuzzu Toyota quote generated the branded PDF in 61 seconds locally. A real production ING Audi quote generated the branded PDF in 90 seconds with a €900 total and no image generation. A separate local comparison confirmed €900 at 10% and €880 at 12%, with the same saved Audi illustration reused. The browser replay showed the walking handoff and the manager's closing balloon. Production retained both login accounts and verified access to eight models with its saved ChatGPT session.
+
+
 ## Remote ChatGPT sign-in
 
 The Connection dialog opens the return-address form when sign-in starts on a remote host. It explains that the OpenAI tab will return to loopback and that the operator must copy the full address into the original AgentSim dialog. The existing protected endpoint checks the loopback address and pending OAuth state. The interface refreshes the provider access status after completion. Local sign-in still receives the callback directly.

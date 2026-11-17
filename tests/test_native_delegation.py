@@ -36,7 +36,7 @@ class NativeDelegationTests(unittest.TestCase):
                         "status": "completed",
                         "arguments": json.dumps(
                             {
-                                "coworker": "2. Writer — Writer",
+                                "coworker": "Writer",
                                 "task": "Write a picnic plan",
                                 "context": "Accessible park",
                             }
